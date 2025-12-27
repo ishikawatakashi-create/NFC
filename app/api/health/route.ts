@@ -12,3 +12,4 @@ export async function GET() {
   return NextResponse.json({ ok: !error, data, error });
 }
 
+

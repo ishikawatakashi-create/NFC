@@ -24,3 +24,4 @@ COMMENT ON COLUMN admins.first_name IS '名前（名）';
 COMMENT ON COLUMN admins.last_name IS '苗字（姓）';
 COMMENT ON COLUMN admins.employment_type IS '雇用形態（part_time: アルバイト, full_time: 正社員）';
 
+

@@ -22,3 +22,4 @@ COMMENT ON COLUMN role_based_access_times.role IS '属性（student: 生徒, par
 COMMENT ON COLUMN role_based_access_times.start_time IS '開始時刻';
 COMMENT ON COLUMN role_based_access_times.end_time IS '終了時刻';
 
+

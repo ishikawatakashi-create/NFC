@@ -55,3 +55,4 @@ END $$;
 -- コメント更新（オプション）
 COMMENT ON COLUMN students.status IS 'ステータス（active: 在籍, suspended: 休会, withdrawn: 退会, graduated: 卒業）';
 
+

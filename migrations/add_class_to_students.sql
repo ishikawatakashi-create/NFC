@@ -7,3 +7,4 @@ ADD COLUMN IF NOT EXISTS class TEXT NULL;
 -- コメント追加（オプション）
 COMMENT ON COLUMN students.class IS 'コース（kindergarten, beginner, challenger, creator, innovator）';
 
+

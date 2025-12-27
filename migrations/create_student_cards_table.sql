@@ -19,3 +19,4 @@ COMMENT ON COLUMN student_cards.student_id IS '生徒ID（students.id）';
 COMMENT ON COLUMN student_cards.card_token_id IS 'カードトークンID（card_tokens.id）';
 COMMENT ON COLUMN student_cards.created_at IS '紐付け作成日時';
 
+

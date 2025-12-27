@@ -272,3 +272,4 @@ curl http://localhost:3001/api/auto-exit
 **最終更新**: 2024年12月  
 **バージョン**: 1.0.0
 
+

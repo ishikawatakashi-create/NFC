@@ -278,3 +278,4 @@ supabase db push
 - [Supabase Client Library](https://supabase.com/docs/reference/javascript/introduction)
 - [Next.js App Router](https://nextjs.org/docs/app)
 
+

@@ -9,3 +9,4 @@ ADD COLUMN IF NOT EXISTS last_event_timestamp TIMESTAMPTZ NULL;
 COMMENT ON COLUMN students.last_event_type IS '最終イベント種別（entry: 入室, exit: 退室, no_log: ログ無し）';
 COMMENT ON COLUMN students.last_event_timestamp IS '最終イベント日時';
 
+
