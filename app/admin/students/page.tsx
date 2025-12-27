@@ -34,53 +34,11 @@ interface Student {
   notificationRecipients?: NotificationRecipient[]
 }
 
-const mockStudents: Student[] = [
-  {
-    id: "1",
-    name: "田中太郎",
-    grade: "小学3年",
-    status: "active",
-    class: "beginner",
-    lastEvent: "entry",
-    lastEventTime: "2024-01-15 15:30",
-    notificationCount: 2,
-    notificationRecipients: [
-      { id: "1", name: "田中花子" },
-      { id: "2", name: "田中一郎" },
-    ],
-  },
-  {
-    id: "2",
-    name: "佐藤花子",
-    grade: "小学5年",
-    status: "active",
-    class: "challenger",
-    lastEvent: "exit",
-    lastEventTime: "2024-01-15 17:00",
-    notificationCount: 1,
-    notificationRecipients: [{ id: "3", name: "佐藤太郎" }],
-  },
-  {
-    id: "3",
-    name: "鈴木一郎",
-    grade: "小学4年",
-    status: "suspended",
-    class: "creator",
-    lastEvent: "exit",
-    lastEventTime: "2024-01-10 16:45",
-    notificationCount: 2,
-    notificationRecipients: [
-      { id: "4", name: "鈴木花子" },
-      { id: "5", name: "鈴木次郎" },
-    ],
-  },
-]
-
 export default function StudentsPage() {
   const router = useRouter()
   const [students, setStudents] = useState<Student[]>([])
-  const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
@@ -94,41 +52,48 @@ export default function StudentsPage() {
   })
 
   async function loadStudents() {
+    setIsLoading(true)
+    setError(null)
+
     try {
-      setLoading(true)
-      setLoadError(null)
-
       const res = await fetch("/api/students", { cache: "no-store" })
-      const json = await res.json()
+      const data = await res.json()
 
-      if (!json.ok) throw new Error(JSON.stringify(json.error))
+      if (!res.ok || !data?.ok) {
+        const errorMessage = typeof data?.error === "string" 
+          ? data.error 
+          : data?.error?.message || String(data?.error) || "Failed to load students";
+        throw new Error(errorMessage);
+      }
 
-      const rows = (json.students ?? []) as Array<{
-        id: string
+      const apiStudents: Array<{
+        id: string | number
         name: string
-        grade: string | null
-        status: "active" | "suspended" | "withdrawn"
-        created_at: string
-      }>
+        grade?: string | number | null
+        status?: "active" | "suspended" | "withdrawn"
+        class?: string | null
+        created_at?: string | null
+      }> = data.students ?? []
 
-      // 既存UI用の型に合わせて埋める（未実装項目は空）
-      const mapped: Student[] = rows.map((r) => ({
-        id: r.id,
-        name: r.name,
-        grade: r.grade ?? undefined,
-        status: r.status,
-        class: undefined,
-        lastEvent: undefined,
-        lastEventTime: undefined,
-        notificationCount: 0,
-        notificationRecipients: [],
+      // ★UIの Student 型に"寄せる"。未実装列は埋める。
+      const mapped: Student[] = apiStudents.map((s) => ({
+        id: String(s.id), // 確実に文字列化
+        name: s.name ?? "",
+        grade: s.grade ? String(s.grade) : undefined,
+        status: (s.status ?? "active") as StudentStatus,
+        class: s.class ? (s.class as StudentClass) : undefined, // DBから取得したclassを反映
+        lastEvent: undefined, // DB未実装なら undefined
+        lastEventTime: undefined, // DB未実装なら undefined
+        notificationCount: 0, // DB未実装なら 0
+        notificationRecipients: [], // DB未実装なら空配列
       }))
 
       setStudents(mapped)
     } catch (e: any) {
-      setLoadError(e?.message ?? "load error")
+      const errorMessage = e?.message || String(e) || "Unknown error";
+      setError(errorMessage);
     } finally {
-      setLoading(false)
+      setIsLoading(false)
     }
   }
 
@@ -198,6 +163,8 @@ export default function StudentsPage() {
   }
 
   const handleAddStudent = async () => {
+    if (!newStudent.name.trim()) return
+
     try {
       const res = await fetch("/api/students", {
         method: "POST",
@@ -205,18 +172,29 @@ export default function StudentsPage() {
         body: JSON.stringify({
           name: newStudent.name.trim(),
           grade: newStudent.grade.trim() || null,
+          class: newStudent.class || null,
         }),
       })
-      const json = await res.json()
-      if (!json.ok) throw new Error(JSON.stringify(json.error))
+      const data = await res.json()
 
+      if (!res.ok || !data?.ok) {
+        const errorMessage = typeof data?.error === "string" 
+          ? data.error 
+          : data?.error?.message || String(data?.error) || "Failed to create student";
+        throw new Error(errorMessage);
+      }
+
+      // ダイアログ閉じる
       setIsAddDialogOpen(false)
+
+      // 入力リセット
       setNewStudent({ name: "", grade: "", status: "active", class: undefined })
 
-      // 追加後に再取得（確実）
+      // 一覧更新
       await loadStudents()
     } catch (e: any) {
-      alert(e?.message ?? "登録に失敗しました")
+      const errorMessage = e?.message || String(e) || "Failed to create student";
+      alert(errorMessage);
     }
   }
 
@@ -330,8 +308,8 @@ export default function StudentsPage() {
         </Card>
 
         {/* Loading and Error Messages */}
-        {loading && <p className="text-sm text-muted-foreground">読み込み中...</p>}
-        {loadError && <p className="text-sm text-destructive">読み込み失敗: {loadError}</p>}
+        {isLoading && <div className="text-sm text-muted-foreground">読み込み中…</div>}
+        {error && <div className="text-sm text-red-600">エラー: {error}</div>}
 
         {/* Students Table */}
         <Card>
