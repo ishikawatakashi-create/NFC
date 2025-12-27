@@ -11,11 +11,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Plus, Download, Search, Eye, UserPlus, Pencil, Trash2 } from "lucide-react"
+import { Plus, Download, Search, Eye, UserPlus, Pencil, Trash2, CreditCard, Upload, FileDown } from "lucide-react"
 
-type StudentStatus = "active" | "suspended" | "withdrawn"
+type StudentStatus = "active" | "suspended" | "withdrawn" | "graduated"
 type StudentClass = "kindergarten" | "beginner" | "challenger" | "creator" | "innovator"
-type EventType = "entry" | "exit" | "forced_exit"
+type EventType = "entry" | "exit" | "no_log"
+type UserRole = "student" | "part_time" | "full_time"
 
 interface NotificationRecipient {
   id: string
@@ -28,6 +29,12 @@ interface Student {
   grade?: string
   status: StudentStatus
   class?: StudentClass
+  role?: UserRole
+  cardId?: string
+  card_registered?: boolean
+  card_active?: boolean
+  card_token?: string | null
+  card_token_id?: string | null
   lastEvent?: EventType
   lastEventTime?: string
   notificationCount: number
@@ -43,12 +50,29 @@ export default function StudentsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isCardRegisterDialogOpen, setIsCardRegisterDialogOpen] = useState(false)
+  const [isCardDeleteDialogOpen, setIsCardDeleteDialogOpen] = useState(false)
+  const [isBulkImportDialogOpen, setIsBulkImportDialogOpen] = useState(false)
+  const [csvFile, setCsvFile] = useState<File | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [uploadSuccess, setUploadSuccess] = useState(false)
+  const [uploadResult, setUploadResult] = useState<{ success: number; failed: number; errors: string[] } | null>(null)
+  const [deletingStudent, setDeletingStudent] = useState<Student | null>(null)
   const [editingStudent, setEditingStudent] = useState<Student | null>(null)
+  const [registeringCardStudent, setRegisteringCardStudent] = useState<Student | null>(null)
+  const [deletingCardStudent, setDeletingCardStudent] = useState<Student | null>(null)
+  const [nfcStatus, setNfcStatus] = useState<"idle" | "issuing" | "writing" | "success" | "error">("idle")
+  const [nfcError, setNfcError] = useState<string>("")
+  const [registeredToken, setRegisteredToken] = useState<string>("")
   const [newStudent, setNewStudent] = useState({
     name: "",
     grade: "",
     status: "active" as StudentStatus,
     class: undefined as StudentClass | undefined,
+    role: "student" as UserRole,
+    cardId: "",
   })
 
   async function loadStudents() {
@@ -70,8 +94,16 @@ export default function StudentsPage() {
         id: string | number
         name: string
         grade?: string | number | null
-        status?: "active" | "suspended" | "withdrawn"
+        status?: "active" | "suspended" | "withdrawn" | "graduated"
         class?: string | null
+        role?: string | null
+        card_id?: string | null
+        card_registered?: boolean
+        card_active?: boolean
+        card_token?: string | null
+        card_token_id?: string | null
+        last_event_type?: string | null
+        last_event_timestamp?: string | null
         created_at?: string | null
       }> = data.students ?? []
 
@@ -82,8 +114,14 @@ export default function StudentsPage() {
         grade: s.grade ? String(s.grade) : undefined,
         status: (s.status ?? "active") as StudentStatus,
         class: s.class ? (s.class as StudentClass) : undefined, // DBから取得したclassを反映
-        lastEvent: undefined, // DB未実装なら undefined
-        lastEventTime: undefined, // DB未実装なら undefined
+        role: s.role ? (s.role as UserRole) : "student", // デフォルトはstudent
+        cardId: s.card_id || undefined,
+        card_registered: s.card_registered ?? false,
+        card_active: s.card_active ?? false,
+        card_token: s.card_token || undefined,
+        card_token_id: s.card_token_id || undefined,
+        lastEvent: s.last_event_type ? (s.last_event_type as EventType) : undefined,
+        lastEventTime: s.last_event_timestamp ? formatDateTime(s.last_event_timestamp) : undefined,
         notificationCount: 0, // DB未実装なら 0
         notificationRecipients: [], // DB未実装なら空配列
       }))
@@ -116,6 +154,8 @@ export default function StudentsPage() {
         return "休会"
       case "withdrawn":
         return "退会"
+      case "graduated":
+        return "卒業"
     }
   }
 
@@ -127,6 +167,8 @@ export default function StudentsPage() {
         return "secondary"
       case "withdrawn":
         return "outline"
+      case "graduated":
+        return "secondary"
     }
   }
 
@@ -146,16 +188,40 @@ export default function StudentsPage() {
     }
   }
 
+  const getRoleLabel = (role?: UserRole) => {
+    if (!role) return "生徒"
+    switch (role) {
+      case "student":
+        return "生徒"
+      case "part_time":
+        return "アルバイト"
+      case "full_time":
+        return "正社員"
+    }
+  }
+
   const getEventLabel = (event?: EventType) => {
-    if (!event) return "-"
+    if (!event) return "ログ無し"
     switch (event) {
       case "entry":
         return "入室"
       case "exit":
         return "退室"
-      case "forced_exit":
-        return "強制退室"
+      case "no_log":
+        return "ログ無し"
     }
+  }
+
+  // 日時を24時間表記（秒まで）でフォーマット
+  const formatDateTime = (dateTimeString: string) => {
+    const date = new Date(dateTimeString)
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, "0")
+    const day = String(date.getDate()).padStart(2, "0")
+    const hours = String(date.getHours()).padStart(2, "0")
+    const minutes = String(date.getMinutes()).padStart(2, "0")
+    const seconds = String(date.getSeconds()).padStart(2, "0")
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
   }
 
   const handleRowClick = (studentId: string) => {
@@ -173,6 +239,8 @@ export default function StudentsPage() {
           name: newStudent.name.trim(),
           grade: newStudent.grade.trim() || null,
           class: newStudent.class || null,
+          role: newStudent.role,
+          card_id: newStudent.cardId.trim() || null,
         }),
       })
       const data = await res.json()
@@ -188,7 +256,7 @@ export default function StudentsPage() {
       setIsAddDialogOpen(false)
 
       // 入力リセット
-      setNewStudent({ name: "", grade: "", status: "active", class: undefined })
+      setNewStudent({ name: "", grade: "", status: "active", class: undefined, role: "student", cardId: "" })
 
       // 一覧更新
       await loadStudents()
@@ -235,25 +303,41 @@ export default function StudentsPage() {
     })
   }
 
-  const handleUpdateStudent = () => {
+  const handleUpdateStudent = async () => {
     if (!editingStudent) return
 
-    setStudents(
-      students.map((s) =>
-        s.id === editingStudent.id
-          ? {
-              ...s,
-              name: editingStudent.name,
-              grade: editingStudent.grade,
-              class: editingStudent.class,
-              notificationRecipients: editingStudent.notificationRecipients?.filter((r) => r.name.trim() !== "") || [],
-              notificationCount: editingStudent.notificationRecipients?.filter((r) => r.name.trim() !== "").length || 0,
-            }
-          : s
-      )
-    )
-    setIsEditDialogOpen(false)
-    setEditingStudent(null)
+    try {
+      const res = await fetch(`/api/students/${editingStudent.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editingStudent.name.trim(),
+          grade: editingStudent.grade?.trim() || null,
+          class: editingStudent.class || null,
+          status: editingStudent.status,
+          role: editingStudent.role || "student",
+          card_id: editingStudent.cardId?.trim() || null,
+        }),
+      })
+      const data = await res.json()
+
+      if (!res.ok || !data?.ok) {
+        const errorMessage = typeof data?.error === "string" 
+          ? data.error 
+          : data?.error?.message || String(data?.error) || "Failed to update student";
+        throw new Error(errorMessage);
+      }
+
+      // ダイアログ閉じる
+      setIsEditDialogOpen(false)
+      setEditingStudent(null)
+
+      // 一覧更新
+      await loadStudents()
+    } catch (e: any) {
+      const errorMessage = e?.message || String(e) || "Failed to update student";
+      alert(errorMessage);
+    }
   }
 
   const handleCancelEdit = () => {
@@ -261,19 +345,375 @@ export default function StudentsPage() {
     setEditingStudent(null)
   }
 
+  const handleDeleteStudent = (student: Student) => {
+    setDeletingStudent(student)
+    setIsDeleteDialogOpen(true)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!deletingStudent) return
+
+    try {
+      const res = await fetch(`/api/students?id=${deletingStudent.id}`, {
+        method: "DELETE",
+      })
+      const data = await res.json()
+
+      if (!res.ok || !data?.ok) {
+        const errorMessage = typeof data?.error === "string" 
+          ? data.error 
+          : data?.error?.message || String(data?.error) || "Failed to delete student";
+        throw new Error(errorMessage);
+      }
+
+      // ダイアログ閉じる
+      setIsDeleteDialogOpen(false)
+      setDeletingStudent(null)
+
+      // 一覧更新
+      await loadStudents()
+    } catch (e: any) {
+      const errorMessage = e?.message || String(e) || "Failed to delete student";
+      alert(errorMessage);
+    }
+  }
+
+  const handleCancelDelete = () => {
+    setIsDeleteDialogOpen(false)
+    setDeletingStudent(null)
+  }
+
+  const handleRegisterCard = (student: Student) => {
+    setRegisteringCardStudent(student)
+    setIsCardRegisterDialogOpen(true)
+    setNfcStatus("idle")
+    setNfcError("")
+    setRegisteredToken("")
+  }
+
+  const handleCancelCardRegister = () => {
+    setIsCardRegisterDialogOpen(false)
+    setRegisteringCardStudent(null)
+    setNfcStatus("idle")
+    setNfcError("")
+    setRegisteredToken("")
+  }
+
+  const handleStartCardWrite = async () => {
+    if (!registeringCardStudent) return
+
+    // Web NFC対応チェック
+    if (!("NDEFReader" in window)) {
+      setNfcStatus("error")
+      setNfcError("この端末/ブラウザはNFC読み取りに対応していません（Android Chrome推奨）")
+      return
+    }
+
+    // HTTPS チェック（localhost除く）
+    if (window.location.protocol !== "https:" && window.location.hostname !== "localhost") {
+      setNfcStatus("error")
+      setNfcError("HTTPS環境で実行してください")
+      return
+    }
+
+    try {
+      setNfcStatus("issuing")
+      setNfcError("")
+
+      // 1. サーバからトークンを発行
+      const issueRes = await fetch("/api/cards/issue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studentId: registeringCardStudent.id }),
+      })
+      const issueData = await issueRes.json()
+
+      if (!issueRes.ok || !issueData?.ok) {
+        throw new Error(issueData?.error || "トークン発行に失敗しました")
+      }
+
+      const token = issueData.token
+
+      // 2. Web NFCでカードに書き込み
+      setNfcStatus("writing")
+
+      const ndef = new (window as any).NDEFReader()
+      await ndef.write({
+        records: [{ recordType: "text", data: token }],
+      })
+
+      // 3. 成功
+      setNfcStatus("success")
+      setRegisteredToken(token)
+
+      // 一覧を更新
+      await loadStudents()
+    } catch (e: any) {
+      setNfcStatus("error")
+      const errorMessage = e?.message || String(e) || "カード登録に失敗しました"
+      setNfcError(errorMessage)
+    }
+  }
+
+  const handleDisableToken = async () => {
+    if (!registeredToken) return
+
+    try {
+      const res = await fetch("/api/cards/disable", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: registeredToken }),
+      })
+      const data = await res.json()
+
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.error || "トークン無効化に失敗しました")
+      }
+
+      alert("トークンを無効化しました")
+      handleCancelCardRegister()
+    } catch (e: any) {
+      alert(e?.message || "トークン無効化に失敗しました")
+    }
+  }
+
+  const handleDeleteCard = (student: Student) => {
+    setDeletingCardStudent(student)
+    setIsCardDeleteDialogOpen(true)
+  }
+
+  const handleConfirmDeleteCard = async () => {
+    if (!deletingCardStudent) return
+
+    try {
+      const res = await fetch(`/api/cards/delete?studentId=${deletingCardStudent.id}`, {
+        method: "DELETE",
+      })
+      const data = await res.json()
+
+      if (!res.ok || !data?.ok) {
+        const errorMessage = typeof data?.error === "string" 
+          ? data.error 
+          : data?.error?.message || String(data?.error) || "カード登録の削除に失敗しました";
+        throw new Error(errorMessage);
+      }
+
+      // ダイアログ閉じる
+      setIsCardDeleteDialogOpen(false)
+      setDeletingCardStudent(null)
+
+      // 一覧更新
+      await loadStudents()
+    } catch (e: any) {
+      const errorMessage = e?.message || String(e) || "カード登録の削除に失敗しました";
+      alert(errorMessage);
+    }
+  }
+
+  const handleCancelDeleteCard = () => {
+    setIsCardDeleteDialogOpen(false)
+    setDeletingCardStudent(null)
+  }
+
+  const handleExportCSV = () => {
+    const headers = ["ユーザー名", "属性", "学年", "ステータス", "クラス", "カードID", "最終イベント", "最終イベント日時"]
+    const csvContent = [
+      headers.join(","),
+      ...filteredStudents.map((student) =>
+        [
+          `"${student.name}"`,
+          `"${getRoleLabel(student.role)}"`,
+          student.grade || "",
+          `"${getStatusLabel(student.status)}"`,
+          `"${getClassLabel(student.class)}"`,
+          student.cardId || "",
+          `"${getEventLabel(student.lastEvent)}"`,
+          student.lastEventTime || "",
+        ].join(","),
+      ),
+    ].join("\n")
+
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" })
+    const link = document.createElement("a")
+    link.href = URL.createObjectURL(blob)
+    link.download = `students_${new Date().toISOString().split("T")[0]}.csv`
+    link.click()
+  }
+
+  const handleDownloadTemplate = () => {
+    const headers = ["name", "role", "status", "grade", "class", "card_id"]
+    const exampleRows = [
+      ["山田太郎", "student", "active", "小学3年", "beginner", ""],
+      ["佐藤花子", "part_time", "active", "", "creator", "CARD-001"],
+      ["鈴木一郎", "full_time", "active", "", "", ""],
+    ]
+    const csvContent = [
+      headers.join(","),
+      ...exampleRows.map((row) => row.map((cell) => `"${cell}"`).join(",")),
+    ].join("\n")
+
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" })
+    const link = document.createElement("a")
+    link.href = URL.createObjectURL(blob)
+    link.download = `students_template_${new Date().toISOString().split("T")[0]}.csv`
+    link.click()
+  }
+
+  const handleBulkImport = async () => {
+    if (!csvFile) return
+
+    setIsUploading(true)
+    setUploadError(null)
+    setUploadSuccess(false)
+    setUploadResult(null)
+
+    try {
+      // CSVファイルを読み込む
+      const text = await csvFile.text()
+      const lines = text.split("\n").filter((line) => line.trim())
+      
+      if (lines.length < 2) {
+        throw new Error("CSVファイルが空か、ヘッダー行のみです")
+      }
+
+      // ヘッダー行を解析
+      const headers = lines[0].split(",").map((h) => h.trim().replace(/^"|"$/g, ""))
+      const nameIndex = headers.findIndex((h) => h.toLowerCase() === "name" || h === "ユーザー名")
+      const roleIndex = headers.findIndex((h) => h.toLowerCase() === "role" || h === "属性")
+      const statusIndex = headers.findIndex((h) => h.toLowerCase() === "status" || h === "ステータス")
+      const gradeIndex = headers.findIndex((h) => h.toLowerCase() === "grade" || h === "学年")
+      const classIndex = headers.findIndex((h) => h.toLowerCase() === "class" || h === "クラス")
+      const cardIdIndex = headers.findIndex((h) => h.toLowerCase() === "card_id" || h === "カードID")
+
+      if (nameIndex === -1 || roleIndex === -1 || statusIndex === -1) {
+        throw new Error("必須項目（name, role, status）が見つかりません")
+      }
+
+      // データ行を解析
+      const students: Array<{
+        name: string
+        role: string
+        status: string
+        grade?: string
+        class?: string
+        card_id?: string
+      }> = []
+
+      const errors: string[] = []
+
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i]
+        const values = line.split(",").map((v) => v.trim().replace(/^"|"$/g, ""))
+        
+        const name = values[nameIndex]?.trim()
+        const role = values[roleIndex]?.trim()
+        const status = values[statusIndex]?.trim()
+
+        if (!name || !role || !status) {
+          errors.push(`行${i + 1}: 必須項目が不足しています`)
+          continue
+        }
+
+        // 属性の変換（日本語→英語）
+        let roleValue = role.toLowerCase()
+        if (role === "生徒") roleValue = "student"
+        else if (role === "アルバイト") roleValue = "part_time"
+        else if (role === "正社員") roleValue = "full_time"
+
+        if (!["student", "part_time", "full_time"].includes(roleValue)) {
+          errors.push(`行${i + 1}: 属性が不正です（${role}）`)
+          continue
+        }
+
+        // ステータスの変換（日本語→英語）
+        let statusValue = status.toLowerCase()
+        if (status === "在籍") statusValue = "active"
+        else if (status === "休会") statusValue = "suspended"
+        else if (status === "退会") statusValue = "withdrawn"
+        else if (status === "卒業") statusValue = "graduated"
+
+        if (!["active", "suspended", "withdrawn", "graduated"].includes(statusValue)) {
+          errors.push(`行${i + 1}: ステータスが不正です（${status}）`)
+          continue
+        }
+
+        // クラスの変換（日本語→英語）
+        let classValue: string | undefined = values[classIndex]?.trim()
+        if (classValue) {
+          if (classValue === "キンダー") classValue = "kindergarten"
+          else if (classValue === "ビギナー") classValue = "beginner"
+          else if (classValue === "チャレンジャー") classValue = "challenger"
+          else if (classValue === "クリエイター") classValue = "creator"
+          else if (classValue === "イノベーター") classValue = "innovator"
+          else if (!["kindergarten", "beginner", "challenger", "creator", "innovator"].includes(classValue)) {
+            errors.push(`行${i + 1}: クラスが不正です（${values[classIndex]}）`)
+            classValue = undefined
+          }
+        }
+
+        students.push({
+          name,
+          role: roleValue,
+          status: statusValue,
+          grade: values[gradeIndex]?.trim() || undefined,
+          class: classValue,
+          card_id: values[cardIdIndex]?.trim() || undefined,
+        })
+      }
+
+      if (students.length === 0) {
+        throw new Error("有効なデータがありません")
+      }
+
+      // APIに送信
+      const res = await fetch("/api/students/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ students }),
+      })
+      const data = await res.json()
+
+      if (!res.ok || !data?.ok) {
+        const errorMessage = typeof data?.error === "string" 
+          ? data.error 
+          : data?.error?.message || String(data?.error) || "一括登録に失敗しました"
+        throw new Error(errorMessage)
+      }
+
+      setUploadSuccess(true)
+      setUploadResult({
+        success: data.success || students.length,
+        failed: data.failed || errors.length,
+        errors: errors.length > 0 ? errors : (data.errors || []),
+      })
+
+      // 一覧を更新
+      await loadStudents()
+    } catch (e: any) {
+      const errorMessage = e?.message || String(e) || "一括登録に失敗しました"
+      setUploadError(errorMessage)
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
   return (
     <AdminLayout
-      pageTitle="生徒一覧"
-      breadcrumbs={[{ label: "生徒一覧" }]}
+      pageTitle="ユーザー一覧"
+      breadcrumbs={[{ label: "ユーザー一覧" }]}
       actions={
         <>
-          <Button variant="outline" size="sm" className="gap-2 bg-transparent">
+          <Button variant="outline" size="sm" className="gap-2 bg-transparent" onClick={handleExportCSV}>
             <Download className="h-4 w-4" />
             <span className="hidden sm:inline">CSV出力</span>
           </Button>
+          <Button variant="outline" size="sm" className="gap-2" onClick={() => setIsBulkImportDialogOpen(true)}>
+            <Upload className="h-4 w-4" />
+            <span className="hidden sm:inline">CSVで一括登録</span>
+          </Button>
           <Button size="sm" className="gap-2" onClick={() => setIsAddDialogOpen(true)}>
             <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">生徒追加</span>
+            <span className="hidden sm:inline">ユーザー追加</span>
           </Button>
         </>
       }
@@ -286,7 +726,7 @@ export default function StudentsPage() {
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  placeholder="生徒名で検索..."
+                  placeholder="ユーザー名で検索..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-9"
@@ -301,6 +741,7 @@ export default function StudentsPage() {
                   <SelectItem value="active">在籍</SelectItem>
                   <SelectItem value="suspended">休会</SelectItem>
                   <SelectItem value="withdrawn">退会</SelectItem>
+                  <SelectItem value="graduated">卒業</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -317,11 +758,11 @@ export default function StudentsPage() {
             {filteredStudents.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <UserPlus className="mb-4 h-12 w-12 text-muted-foreground" />
-                <h3 className="mb-2 text-lg font-semibold">生徒がいません</h3>
-                <p className="mb-4 text-sm text-muted-foreground">生徒を追加して管理を始めましょう</p>
+                <h3 className="mb-2 text-lg font-semibold">ユーザーがいません</h3>
+                <p className="mb-4 text-sm text-muted-foreground">ユーザーを追加して管理を始めましょう</p>
                 <Button onClick={() => setIsAddDialogOpen(true)} className="gap-2">
                   <Plus className="h-4 w-4" />
-                  生徒を追加
+                  ユーザーを追加
                 </Button>
               </div>
             ) : (
@@ -329,12 +770,15 @@ export default function StudentsPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>生徒名</TableHead>
+                      <TableHead>ユーザー名</TableHead>
+                      <TableHead>属性</TableHead>
                       <TableHead>学年</TableHead>
                       <TableHead>ステータス</TableHead>
                       <TableHead>クラス</TableHead>
+                      <TableHead>カード登録</TableHead>
+                      <TableHead>カードID</TableHead>
                       <TableHead>最終イベント</TableHead>
-                      <TableHead>最終イベント時刻</TableHead>
+                      <TableHead>最終イベント日時</TableHead>
                       <TableHead className="text-center">通知先人数</TableHead>
                       <TableHead className="text-right">操作</TableHead>
                     </TableRow>
@@ -347,16 +791,72 @@ export default function StudentsPage() {
                         onClick={() => handleRowClick(student.id)}
                       >
                         <TableCell className="font-medium">{student.name}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{getRoleLabel(student.role)}</Badge>
+                        </TableCell>
                         <TableCell>{student.grade || "-"}</TableCell>
                         <TableCell>
                           <Badge variant={getStatusVariant(student.status)}>{getStatusLabel(student.status)}</Badge>
                         </TableCell>
                         <TableCell>{getClassLabel(student.class)}</TableCell>
+                        <TableCell>
+                          {student.card_registered ? (
+                            <div className="flex items-center gap-2">
+                              <Badge variant={student.card_active ? "default" : "secondary"}>
+                                {student.card_active ? "登録済み" : "無効"}
+                              </Badge>
+                            </div>
+                          ) : (
+                            <Badge variant="outline">未登録</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="font-mono text-sm">{student.cardId || "-"}</TableCell>
                         <TableCell>{getEventLabel(student.lastEvent)}</TableCell>
-                        <TableCell className="text-muted-foreground">{student.lastEventTime || "-"}</TableCell>
+                        <TableCell className="font-mono text-sm text-muted-foreground">{student.lastEventTime || "-"}</TableCell>
                         <TableCell className="text-center">{student.notificationCount}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-2">
+                            {student.card_registered ? (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="gap-2"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleRegisterCard(student)
+                                  }}
+                                >
+                                  <CreditCard className="h-4 w-4" />
+                                  変更
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="gap-2 text-destructive hover:text-destructive"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleDeleteCard(student)
+                                  }}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                  削除
+                                </Button>
+                              </>
+                            ) : (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="gap-2"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleRegisterCard(student)
+                                }}
+                              >
+                                <CreditCard className="h-4 w-4" />
+                                カード登録
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="sm"
@@ -381,6 +881,18 @@ export default function StudentsPage() {
                               <Eye className="h-4 w-4" />
                               詳細
                             </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="gap-2 text-destructive hover:text-destructive"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleDeleteStudent(student)
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              削除
+                            </Button>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -397,11 +909,11 @@ export default function StudentsPage() {
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>生徒を追加</DialogTitle>
+            <DialogTitle>ユーザーを追加</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="name">生徒名 *</Label>
+              <Label htmlFor="name">ユーザー名 *</Label>
               <Input
                 id="name"
                 placeholder="例: 山田太郎"
@@ -419,6 +931,22 @@ export default function StudentsPage() {
               />
             </div>
             <div className="space-y-2">
+              <Label htmlFor="role">属性 *</Label>
+              <Select
+                value={newStudent.role}
+                onValueChange={(value) => setNewStudent({ ...newStudent, role: value as UserRole })}
+              >
+                <SelectTrigger id="role">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="student">生徒</SelectItem>
+                  <SelectItem value="part_time">アルバイト</SelectItem>
+                  <SelectItem value="full_time">正社員</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="status">ステータス</Label>
               <Select
                 value={newStudent.status}
@@ -431,6 +959,7 @@ export default function StudentsPage() {
                   <SelectItem value="active">在籍</SelectItem>
                   <SelectItem value="suspended">休会</SelectItem>
                   <SelectItem value="withdrawn">退会</SelectItem>
+                  <SelectItem value="graduated">卒業</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -455,6 +984,15 @@ export default function StudentsPage() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-2">
+              <Label htmlFor="cardId">カードID（任意）</Label>
+              <Input
+                id="cardId"
+                placeholder="例: CARD-001"
+                value={newStudent.cardId}
+                onChange={(e) => setNewStudent({ ...newStudent, cardId: e.target.value })}
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
@@ -471,12 +1009,12 @@ export default function StudentsPage() {
       <Dialog open={isEditDialogOpen} onOpenChange={handleCancelEdit}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>生徒を編集</DialogTitle>
+            <DialogTitle>ユーザーを編集</DialogTitle>
           </DialogHeader>
           {editingStudent && (
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label htmlFor="edit-name">生徒名 *</Label>
+                <Label htmlFor="edit-name">ユーザー名 *</Label>
                 <Input
                   id="edit-name"
                   placeholder="例: 山田太郎"
@@ -513,6 +1051,52 @@ export default function StudentsPage() {
                     <SelectItem value="innovator">イノベーター</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-role">属性 *</Label>
+                <Select
+                  value={editingStudent.role || "student"}
+                  onValueChange={(value) =>
+                    setEditingStudent({ ...editingStudent, role: value as UserRole })
+                  }
+                >
+                  <SelectTrigger id="edit-role">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="student">生徒</SelectItem>
+                    <SelectItem value="part_time">アルバイト</SelectItem>
+                    <SelectItem value="full_time">正社員</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-status">ステータス</Label>
+                <Select
+                  value={editingStudent.status}
+                  onValueChange={(value) =>
+                    setEditingStudent({ ...editingStudent, status: value as StudentStatus })
+                  }
+                >
+                  <SelectTrigger id="edit-status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">在籍</SelectItem>
+                    <SelectItem value="suspended">休会</SelectItem>
+                    <SelectItem value="withdrawn">退会</SelectItem>
+                    <SelectItem value="graduated">卒業</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-cardId">カードID（任意）</Label>
+                <Input
+                  id="edit-cardId"
+                  placeholder="例: CARD-001"
+                  value={editingStudent.cardId || ""}
+                  onChange={(e) => setEditingStudent({ ...editingStudent, cardId: e.target.value || undefined })}
+                />
               </div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
@@ -562,6 +1146,255 @@ export default function StudentsPage() {
             </Button>
             <Button onClick={handleUpdateStudent} disabled={!editingStudent?.name.trim()}>
               更新
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={handleCancelDelete}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>ユーザーを削除</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            {deletingStudent && (
+              <p className="text-sm text-muted-foreground">
+                「<span className="font-semibold text-foreground">{deletingStudent.name}</span>」を削除してもよろしいですか？
+                <br />
+                この操作は取り消せません。
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCancelDelete}>
+              キャンセル
+            </Button>
+            <Button variant="destructive" onClick={handleConfirmDelete}>
+              削除
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* NFC Card Register Dialog */}
+      <Dialog open={isCardRegisterDialogOpen} onOpenChange={handleCancelCardRegister}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>NFCカード登録</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {registeringCardStudent && (
+              <div className="space-y-2">
+                <p className="text-sm">
+                  <span className="font-semibold">{registeringCardStudent.name}</span> さんにNFCカードを登録します。
+                </p>
+              </div>
+            )}
+
+            {nfcStatus === "idle" && (
+              <div className="space-y-3">
+                <div className="rounded-md bg-muted p-4 text-sm">
+                  <p className="font-semibold mb-2">手順：</p>
+                  <ol className="list-decimal list-inside space-y-1">
+                    <li>Android端末（Chrome推奨）を用意してください</li>
+                    <li>NFCカードを準備してください</li>
+                    <li>「開始」ボタンを押してください</li>
+                    <li>カードを端末にタッチしてください</li>
+                  </ol>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  ※ 既に登録済みのカードがある場合は自動的に無効化され、新しいカードが登録されます。
+                </p>
+              </div>
+            )}
+
+            {nfcStatus === "issuing" && (
+              <div className="flex items-center gap-3 rounded-md bg-blue-50 p-4">
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent"></div>
+                <p className="text-sm text-blue-900">トークンを発行しています...</p>
+              </div>
+            )}
+
+            {nfcStatus === "writing" && (
+              <div className="flex flex-col items-center gap-3 rounded-md bg-blue-50 p-6">
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent"></div>
+                <p className="text-sm font-semibold text-blue-900">カードを端末にタッチしてください</p>
+                <p className="text-xs text-blue-700">書き込み中...</p>
+              </div>
+            )}
+
+            {nfcStatus === "success" && (
+              <div className="space-y-3">
+                <div className="rounded-md bg-green-50 p-4">
+                  <p className="text-sm font-semibold text-green-900 mb-2">✓ 登録完了</p>
+                  <p className="text-xs text-green-700">
+                    カードへの書き込みが完了しました。
+                  </p>
+                  {registeredToken && (
+                    <p className="text-xs text-green-700 mt-2 font-mono break-all">
+                      トークン: ...{registeredToken.slice(-8)}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {nfcStatus === "error" && (
+              <div className="space-y-3">
+                <div className="rounded-md bg-red-50 p-4">
+                  <p className="text-sm font-semibold text-red-900 mb-2">✗ エラー</p>
+                  <p className="text-xs text-red-700">{nfcError}</p>
+                </div>
+                {registeredToken && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDisableToken}
+                    className="w-full"
+                  >
+                    発行済みトークンを無効化
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            {nfcStatus === "idle" && (
+              <>
+                <Button variant="outline" onClick={handleCancelCardRegister}>
+                  キャンセル
+                </Button>
+                <Button onClick={handleStartCardWrite}>開始</Button>
+              </>
+            )}
+            {(nfcStatus === "success" || nfcStatus === "error") && (
+              <Button onClick={handleCancelCardRegister}>閉じる</Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* CSV Bulk Import Dialog */}
+      <Dialog open={isBulkImportDialogOpen} onOpenChange={setIsBulkImportDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>CSVで一括登録</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">
+                CSVファイルをアップロードして、ユーザーを一括登録できます。
+              </p>
+              <div className="rounded-md bg-muted p-4">
+                <p className="text-sm font-semibold mb-2">必須項目：</p>
+                <ul className="text-sm space-y-1 list-disc list-inside">
+                  <li>ユーザー名（name）</li>
+                  <li>属性（role）：生徒 / アルバイト / 正社員</li>
+                  <li>ステータス（status）：在籍 / 休会 / 退会 / 卒業</li>
+                </ul>
+                <p className="text-sm font-semibold mt-3 mb-2">任意項目：</p>
+                <ul className="text-sm space-y-1 list-disc list-inside">
+                  <li>学年（grade）</li>
+                  <li>クラス（class）：キンダー / ビギナー / チャレンジャー / クリエイター / イノベーター</li>
+                  <li>カードID（card_id）</li>
+                </ul>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2 w-full"
+                onClick={handleDownloadTemplate}
+              >
+                <FileDown className="h-4 w-4" />
+                テンプレートCSVをダウンロード
+              </Button>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="csv-file">CSVファイルを選択</Label>
+              <Input
+                id="csv-file"
+                type="file"
+                accept=".csv"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) {
+                    setCsvFile(file)
+                    setUploadError(null)
+                    setUploadSuccess(false)
+                    setUploadResult(null)
+                  }
+                }}
+              />
+            </div>
+            {uploadError && (
+              <div className="rounded-md bg-red-50 p-4">
+                <p className="text-sm font-semibold text-red-900 mb-2">エラー</p>
+                <p className="text-xs text-red-700">{uploadError}</p>
+              </div>
+            )}
+            {uploadSuccess && uploadResult && (
+              <div className="rounded-md bg-green-50 p-4">
+                <p className="text-sm font-semibold text-green-900 mb-2">登録完了</p>
+                <p className="text-xs text-green-700">
+                  成功: {uploadResult.success}件、失敗: {uploadResult.failed}件
+                </p>
+                {uploadResult.errors.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-xs font-semibold text-green-900">エラー詳細：</p>
+                    <ul className="text-xs text-green-700 list-disc list-inside mt-1">
+                      {uploadResult.errors.map((error, index) => (
+                        <li key={index}>{error}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setIsBulkImportDialogOpen(false)
+              setCsvFile(null)
+              setUploadError(null)
+              setUploadSuccess(false)
+              setUploadResult(null)
+            }}>
+              キャンセル
+            </Button>
+            <Button
+              onClick={handleBulkImport}
+              disabled={!csvFile || isUploading}
+            >
+              {isUploading ? "登録中..." : "登録"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Card Confirmation Dialog */}
+      <Dialog open={isCardDeleteDialogOpen} onOpenChange={handleCancelDeleteCard}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>カード登録を削除</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            {deletingCardStudent && (
+              <p className="text-sm text-muted-foreground">
+                「<span className="font-semibold text-foreground">{deletingCardStudent.name}</span>」のカード登録を削除してもよろしいですか？
+                <br />
+                この操作により、カードトークンは無効化され、カード紐付けが削除されます。
+                <br />
+                この操作は取り消せません。
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCancelDeleteCard}>
+              キャンセル
+            </Button>
+            <Button variant="destructive" onClick={handleConfirmDeleteCard}>
+              削除
             </Button>
           </DialogFooter>
         </DialogContent>

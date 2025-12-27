@@ -2,12 +2,13 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Menu, X, Users, ClipboardList, Settings, LogOut, ChevronRight } from "lucide-react"
+import { createBrowserSupabaseClient } from "@/lib/supabase-client-auth"
 
 interface MenuItem {
   label: string
@@ -16,7 +17,7 @@ interface MenuItem {
 }
 
 const menuItems: MenuItem[] = [
-  { label: "生徒一覧", href: "/admin/students", icon: Users },
+  { label: "ユーザー一覧", href: "/admin/students", icon: Users },
   { label: "入退室ログ", href: "/admin/access-logs", icon: ClipboardList },
   { label: "設定", href: "/admin/settings", icon: Settings },
 ]
@@ -30,7 +31,57 @@ interface AdminLayoutProps {
 
 export function AdminLayout({ children, pageTitle, breadcrumbs, actions }: AdminLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [adminInfo, setAdminInfo] = useState<{ name: string; email: string } | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
   const pathname = usePathname()
+  const router = useRouter()
+
+  useEffect(() => {
+    async function loadAdminInfo() {
+      try {
+        const supabase = createBrowserSupabaseClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        
+        if (!user) {
+          router.push("/admin/login")
+          return
+        }
+
+        // API経由で管理者情報を取得
+        const res = await fetch("/api/admin/info", {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+        })
+
+        if (res.ok) {
+          const data = await res.json()
+          if (data?.ok && data?.admin) {
+            setAdminInfo({
+              name: `${data.admin.lastName} ${data.admin.firstName}`,
+              email: user.email || "",
+            })
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load admin info:", error)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    loadAdminInfo()
+  }, [router])
+
+  const handleLogout = async () => {
+    try {
+      const supabase = createBrowserSupabaseClient()
+      await supabase.auth.signOut()
+      router.push("/admin/login")
+      router.refresh()
+    } catch (error) {
+      console.error("Logout error:", error)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-muted/30">
@@ -118,12 +169,14 @@ export function AdminLayout({ children, pageTitle, breadcrumbs, actions }: Admin
             <div className="hidden h-8 w-px bg-border sm:block" />
 
             <div className="flex items-center gap-3">
-              <div className="hidden text-right sm:block">
-                <p className="text-sm font-medium">管理者</p>
-                <p className="text-xs text-muted-foreground">admin@robodan.jp</p>
-              </div>
+              {!isLoading && adminInfo && (
+                <div className="hidden text-right sm:block">
+                  <p className="text-sm font-medium">{adminInfo.name}</p>
+                  <p className="text-xs text-muted-foreground">{adminInfo.email}</p>
+                </div>
+              )}
 
-              <Button variant="ghost" size="sm" className="gap-2">
+              <Button variant="ghost" size="sm" className="gap-2" onClick={handleLogout}>
                 <LogOut className="h-4 w-4" />
                 <span className="hidden sm:inline">ログアウト</span>
               </Button>

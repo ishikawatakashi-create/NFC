@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { getRoleBasedAccessTime } from "@/lib/access-time-utils";
 
 function getSupabase() {
   return createClient(
@@ -9,7 +10,10 @@ function getSupabase() {
 }
 
 // 一覧取得（ブラウザで開くとこれが動く）
-export async function GET() {
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const cardId = searchParams.get("cardId");
+
   const siteId = process.env.SITE_ID;
 
   if (!siteId) {
@@ -21,28 +25,48 @@ export async function GET() {
 
   const supabase = getSupabase();
 
-  // classカラムを含めて取得を試みる
-  let { data, error } = await supabase
+  // classカラム、card_id、role、最終イベント情報、個別開放時間を含めて取得を試みる
+  let query = supabase
     .from("students")
-    .select("id,name,grade,status,class,created_at")
-    .eq("site_id", siteId)
-    .order("created_at", { ascending: false });
+    .select("id,name,grade,status,class,role,card_id,last_event_type,last_event_timestamp,access_start_time,access_end_time,has_custom_access_time,created_at")
+    .eq("site_id", siteId);
 
-  // classカラムが存在しない場合は、classカラムなしで再試行
-  if (error && error.message?.includes("column students.class does not exist")) {
-    const { data: dataWithoutClass, error: errorWithoutClass } = await supabase
+  // カードIDでフィルタ
+  if (cardId) {
+    query = query.eq("card_id", cardId);
+  }
+
+  let { data, error } = await query.order("created_at", { ascending: false });
+
+  // カラムが存在しない場合は、存在するカラムのみで再試行
+  if (error && (error.message?.includes("column students.class does not exist") || 
+                error.message?.includes("column students.card_id does not exist") ||
+                error.message?.includes("column students.role does not exist") ||
+                error.message?.includes("column students.last_event_type does not exist") ||
+                error.message?.includes("column students.access_start_time does not exist"))) {
+    const { data: dataFallback, error: errorFallback } = await supabase
       .from("students")
       .select("id,name,grade,status,created_at")
       .eq("site_id", siteId)
       .order("created_at", { ascending: false });
     
-    if (errorWithoutClass) {
-      const errorMessage = errorWithoutClass.message || String(errorWithoutClass);
+    if (errorFallback) {
+      const errorMessage = errorFallback.message || String(errorFallback);
       return NextResponse.json({ ok: false, error: errorMessage }, { status: 500 });
     }
     
-    // classプロパティを追加して型を合わせる
-    data = dataWithoutClass?.map((item: any) => ({ ...item, class: null })) || null;
+    // 不足しているプロパティを追加して型を合わせる
+    data = dataFallback?.map((item: any) => ({ 
+      ...item, 
+      class: null,
+      role: null,
+      card_id: null,
+      last_event_type: null,
+      last_event_timestamp: null,
+      access_start_time: null,
+      access_end_time: null,
+      has_custom_access_time: false
+    })) || null;
     error = null;
   }
 
@@ -52,19 +76,83 @@ export async function GET() {
   }
 
   // idを必ずstringに変換
+  const studentIds = (data || []).map((s) => String(s.id));
   const students = (data || []).map((s) => ({
     ...s,
     id: String(s.id),
   }));
 
-  return NextResponse.json({ ok: true, students });
+  // カード登録状態を取得（student_cards と card_tokens を別々に取得してマージ）
+  let cardRegistrations: Record<string, { isRegistered: boolean; isActive: boolean; token?: string; cardTokenId?: string }> = {};
+  
+  if (studentIds.length > 0) {
+    try {
+      // 1. student_cards を取得
+      const { data: studentCards, error: studentCardsError } = await supabase
+        .from("student_cards")
+        .select("student_id, card_token_id")
+        .in("student_id", studentIds);
+
+      if (!studentCardsError && studentCards && studentCards.length > 0) {
+        // 2. card_token_id のリストを作成
+        const cardTokenIds = studentCards.map((sc) => sc.card_token_id);
+
+        // 3. card_tokens を取得
+        const { data: cardTokens, error: cardTokensError } = await supabase
+          .from("card_tokens")
+          .select("id, token, is_active")
+          .in("id", cardTokenIds);
+
+        if (!cardTokensError && cardTokens) {
+          // 4. card_tokens をマップに変換（id をキーに）
+          const cardTokenMap = new Map(
+            cardTokens.map((ct) => [ct.id, { token: ct.token, is_active: ct.is_active }])
+          );
+
+          // 5. student_cards と card_tokens をマージ
+          studentCards.forEach((sc) => {
+            const studentId = String(sc.student_id);
+            const cardToken = cardTokenMap.get(sc.card_token_id);
+            if (cardToken) {
+              cardRegistrations[studentId] = {
+                isRegistered: true,
+                isActive: cardToken.is_active || false,
+                token: cardToken.token,
+                cardTokenId: sc.card_token_id,
+              };
+            }
+          });
+        }
+      }
+    } catch (e) {
+      // カード登録情報の取得に失敗しても、生徒一覧は返す
+      console.error("Failed to fetch card registrations:", e);
+    }
+  }
+
+  // カード登録状態を各生徒に追加
+  const studentsWithCards = students.map((student) => {
+    const cardInfo = cardRegistrations[student.id] || {
+      isRegistered: false,
+      isActive: false,
+    };
+    return {
+      ...student,
+      card_registered: cardInfo.isRegistered,
+      card_active: cardInfo.isActive,
+      card_token: cardInfo.token || null,
+      card_token_id: cardInfo.cardTokenId || null,
+    };
+  });
+
+  return NextResponse.json({ ok: true, students: studentsWithCards });
 }
 
-// 生徒追加
+// ユーザー追加
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { name, grade, class: studentClass } = body as { name: string; grade?: string; class?: string };
+    const { name, grade, class: studentClass, role } = body as { name: string; grade?: string; class?: string; role?: string };
 
     const siteId = process.env.SITE_ID;
 
@@ -80,46 +168,72 @@ export async function POST(req: Request) {
 
     const supabase = getSupabase();
 
-    // classカラムを含めて挿入を試みる
+    // 属性に紐づいた開放時間を取得
+    const userRole = (role || "student") as "student" | "part_time" | "full_time";
+    const roleAccessTime = await getRoleBasedAccessTime(siteId, userRole);
+
+    // classカラム、roleを含めて挿入を試みる
     const insertData: any = {
       site_id: siteId,
       name,
       grade: grade ?? null,
-      status: "active"
+      status: "active",
+      role: userRole,
     };
 
     if (studentClass) {
       insertData.class = studentClass;
     }
 
+    // 属性に紐づいた開放時間を個別設定カラムに設定
+    if (roleAccessTime) {
+      insertData.access_start_time = roleAccessTime.start_time;
+      insertData.access_end_time = roleAccessTime.end_time;
+      insertData.has_custom_access_time = false; // 新規登録時は属性設定を使用
+    }
+
     let { data, error } = await supabase
       .from("students")
       .insert([insertData])
-      .select("id,name,grade,status,class,created_at")
+      .select("id,name,grade,status,class,role,card_id,last_event_type,last_event_timestamp,access_start_time,access_end_time,has_custom_access_time,created_at")
       .single();
 
-    // classカラムが存在しない場合は、classカラムなしで再試行
-    if (error && error.message?.includes("column students.class does not exist")) {
-      const insertDataWithoutClass: any = {
+    // カラムが存在しない場合は、存在するカラムのみで再試行
+    if (error && (error.message?.includes("column students.class does not exist") ||
+                  error.message?.includes("column students.role does not exist") ||
+                  error.message?.includes("column students.card_id does not exist") ||
+                  error.message?.includes("column students.last_event_type does not exist") ||
+                  error.message?.includes("column students.access_start_time does not exist"))) {
+      const insertDataFallback: any = {
         site_id: siteId,
         name,
         grade: grade ?? null,
         status: "active"
       };
 
-      const { data: dataWithoutClass, error: errorWithoutClass } = await supabase
+      const { data: dataFallback, error: errorFallback } = await supabase
         .from("students")
-        .insert([insertDataWithoutClass])
+        .insert([insertDataFallback])
         .select("id,name,grade,status,created_at")
         .single();
 
-      if (errorWithoutClass) {
-        const errorMessage = errorWithoutClass.message || String(errorWithoutClass);
+      if (errorFallback) {
+        const errorMessage = errorFallback.message || String(errorFallback);
         return NextResponse.json({ ok: false, error: errorMessage }, { status: 500 });
       }
 
-      // classプロパティを追加して型を合わせる
-      data = dataWithoutClass ? { ...dataWithoutClass, class: null } : null;
+      // 不足しているプロパティを追加して型を合わせる
+      data = dataFallback ? { 
+        ...dataFallback, 
+        class: null,
+        role: null,
+        card_id: null,
+        last_event_type: null,
+        last_event_timestamp: null,
+        access_start_time: null,
+        access_end_time: null,
+        has_custom_access_time: false
+      } : null;
       error = null;
     }
 
@@ -139,6 +253,46 @@ export async function POST(req: Request) {
     };
 
     return NextResponse.json({ ok: true, student });
+  } catch (e: any) {
+    const errorMessage = e?.message || String(e) || "Unknown error";
+    return NextResponse.json({ ok: false, error: errorMessage }, { status: 500 });
+  }
+}
+
+// 生徒削除
+export async function DELETE(req: Request) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id");
+
+    if (!id) {
+      return NextResponse.json({ ok: false, error: "id は必須です" }, { status: 400 });
+    }
+
+    const siteId = process.env.SITE_ID;
+
+    if (!siteId) {
+      return NextResponse.json(
+        { ok: false, error: "SITE_ID が .env.local に設定されていません" },
+        { status: 500 }
+      );
+    }
+
+    const supabase = getSupabase();
+
+    // site_idも確認して削除（セキュリティのため）
+    const { error } = await supabase
+      .from("students")
+      .delete()
+      .eq("id", id)
+      .eq("site_id", siteId);
+
+    if (error) {
+      const errorMessage = error.message || String(error);
+      return NextResponse.json({ ok: false, error: errorMessage }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true });
   } catch (e: any) {
     const errorMessage = e?.message || String(e) || "Unknown error";
     return NextResponse.json({ ok: false, error: errorMessage }, { status: 500 });

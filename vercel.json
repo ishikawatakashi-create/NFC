@@ -1,0 +1,9 @@
+{
+  "crons": [
+    {
+      "path": "/api/auto-exit",
+      "schedule": "*/15 * * * *"
+    }
+  ]
+}
+

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { AdminLayout } from "@/components/admin/admin-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -20,8 +20,8 @@ import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
 import { Download, Filter, ChevronDown, ChevronUp, Edit } from "lucide-react"
 
-type AccessLogType = "entry" | "exit" | "forced_exit"
-type NotificationStatus = "sent" | "not_sent" | "not_applicable"
+type AccessLogType = "entry" | "exit" | "no_log"
+type NotificationStatus = "sent" | "not_required"
 
 interface AccessLog {
   id: string
@@ -39,48 +39,17 @@ interface CorrectionModalData {
   memo: string
 }
 
-const mockLogs: AccessLog[] = [
-  {
-    id: "1",
-    timestamp: "2024-01-15 09:30:15",
-    studentName: "山田太郎",
-    type: "entry",
-    device: "タブレット A-01",
-    notification: "sent",
-  },
-  {
-    id: "2",
-    timestamp: "2024-01-15 12:45:30",
-    studentName: "山田太郎",
-    type: "exit",
-    device: "タブレット A-02",
-    notification: "sent",
-  },
-  {
-    id: "3",
-    timestamp: "2024-01-15 09:25:10",
-    studentName: "佐藤花子",
-    type: "entry",
-    device: "タブレット B-01",
-    notification: "sent",
-  },
-  {
-    id: "4",
-    timestamp: "2024-01-15 13:00:00",
-    studentName: "佐藤花子",
-    type: "forced_exit",
-    device: "システム自動",
-    notification: "not_applicable",
-  },
-  {
-    id: "5",
-    timestamp: "2024-01-15 10:15:22",
-    studentName: "鈴木一郎",
-    type: "entry",
-    device: "タブレット C-01",
-    notification: "not_sent",
-  },
-]
+// 日時を24時間表記（秒まで）でフォーマット
+function formatDateTime(dateTimeString: string) {
+  const date = new Date(dateTimeString)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+  const hours = String(date.getHours()).padStart(2, "0")
+  const minutes = String(date.getMinutes()).padStart(2, "0")
+  const seconds = String(date.getSeconds()).padStart(2, "0")
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
+}
 
 export default function AccessLogsPage() {
   const [showFilters, setShowFilters] = useState(false)
@@ -88,19 +57,83 @@ export default function AccessLogsPage() {
   const [endDate, setEndDate] = useState("")
   const [logType, setLogType] = useState<string>("all")
   const [searchQuery, setSearchQuery] = useState("")
-  const [logs, setLogs] = useState<AccessLog[]>(mockLogs)
+  const [logs, setLogs] = useState<AccessLog[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [correctionModalOpen, setCorrectionModalOpen] = useState(false)
   const [selectedLog, setSelectedLog] = useState<AccessLog | null>(null)
   const [correctionType, setCorrectionType] = useState<"type" | "timestamp" | "other">("type")
   const [correctionValue, setCorrectionValue] = useState("")
   const [correctionMemo, setCorrectionMemo] = useState("")
 
+  async function loadLogs() {
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const params = new URLSearchParams()
+      if (startDate) params.append("startDate", startDate)
+      if (endDate) params.append("endDate", endDate)
+      if (logType && logType !== "all") params.append("type", logType)
+      if (searchQuery) params.append("search", searchQuery)
+
+      const res = await fetch(`/api/access-logs?${params.toString()}`, { cache: "no-store" })
+      const data = await res.json()
+
+      if (!res.ok || !data?.ok) {
+        const errorMessage = typeof data?.error === "string" 
+          ? data.error 
+          : data?.error?.message || String(data?.error) || "Failed to load logs"
+        throw new Error(errorMessage)
+      }
+
+      const apiLogs: Array<{
+        id: string
+        timestamp: string
+        studentName: string
+        type: string
+        cardId?: string | null
+        device: string
+        notification: string
+      }> = data.logs ?? []
+
+      const mapped: AccessLog[] = apiLogs.map((log) => ({
+        id: log.id,
+        timestamp: formatDateTime(log.timestamp),
+        studentName: log.studentName,
+        type: log.type as AccessLogType,
+        device: log.device || log.cardId || "不明",
+        notification: log.notification as NotificationStatus,
+      }))
+
+      setLogs(mapped)
+    } catch (e: any) {
+      const errorMessage = e?.message || String(e) || "Unknown error"
+      setError(errorMessage)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadLogs()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // フィルタ変更時にログを再読み込み
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadLogs()
+    }, 300) // デバウンス
+
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startDate, endDate, logType])
+
+  // 検索クエリでフィルタ（APIで取得したデータをクライアント側でフィルタ）
   const filteredLogs = logs.filter((log) => {
     const matchesSearch = log.studentName.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesType = logType === "all" || log.type === logType
-    const matchesDateRange = (!startDate || log.timestamp >= startDate) && (!endDate || log.timestamp <= endDate)
-
-    return matchesSearch && matchesType && matchesDateRange
+    return matchesSearch
   })
 
   const handleExportCSV = () => {
@@ -133,21 +166,43 @@ export default function AccessLogsPage() {
     setCorrectionModalOpen(true)
   }
 
-  const handleSubmitCorrection = () => {
-    if (!selectedLog) return
+  const handleSubmitCorrection = async () => {
+    if (!selectedLog || !correctionValue) return
 
-    // In a real application, this would make an API call to save the correction
-    console.log("Correction submitted:", {
-      logId: selectedLog.id,
-      correctionType,
-      newValue: correctionValue,
-      memo: correctionMemo,
-      correctedBy: "管理者",
-      correctedAt: new Date().toISOString(),
-    })
+    try {
+      const updateData: any = {}
+      if (correctionType === "type") {
+        updateData.eventType = correctionValue
+      } else if (correctionType === "timestamp") {
+        updateData.timestamp = correctionValue
+      }
+      if (correctionMemo) {
+        updateData.memo = correctionMemo
+      }
 
-    setCorrectionModalOpen(false)
-    // Show success message in production
+      const res = await fetch(`/api/access-logs/${selectedLog.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updateData),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok || !data?.ok) {
+        const errorMessage = typeof data?.error === "string" 
+          ? data.error 
+          : data?.error?.message || String(data?.error) || "Failed to update log"
+        throw new Error(errorMessage)
+      }
+
+      setCorrectionModalOpen(false)
+      setCorrectionValue("")
+      setCorrectionMemo("")
+      await loadLogs()
+    } catch (e: any) {
+      const errorMessage = e?.message || String(e) || "Unknown error"
+      alert(errorMessage)
+    }
   }
 
   const getLogTypeLabel = (type: AccessLogType) => {
@@ -156,8 +211,8 @@ export default function AccessLogsPage() {
         return "入室"
       case "exit":
         return "退室"
-      case "forced_exit":
-        return "強制退室"
+      case "no_log":
+        return "ログ無し"
       default:
         return type
     }
@@ -169,8 +224,8 @@ export default function AccessLogsPage() {
         return "default"
       case "exit":
         return "secondary"
-      case "forced_exit":
-        return "destructive"
+      case "no_log":
+        return "outline"
       default:
         return "outline"
     }
@@ -179,11 +234,9 @@ export default function AccessLogsPage() {
   const getNotificationLabel = (status: NotificationStatus) => {
     switch (status) {
       case "sent":
-        return "送信済"
-      case "not_sent":
-        return "未送信"
-      case "not_applicable":
-        return "対象外"
+        return "送信済み"
+      case "not_required":
+        return "通知不要"
       default:
         return status
     }
@@ -193,9 +246,7 @@ export default function AccessLogsPage() {
     switch (status) {
       case "sent":
         return "default"
-      case "not_sent":
-        return "destructive"
-      case "not_applicable":
+      case "not_required":
         return "secondary"
       default:
         return "outline"
@@ -248,7 +299,7 @@ export default function AccessLogsPage() {
                       <SelectItem value="all">すべて</SelectItem>
                       <SelectItem value="entry">入室</SelectItem>
                       <SelectItem value="exit">退室</SelectItem>
-                      <SelectItem value="forced_exit">強制退室</SelectItem>
+                      <SelectItem value="no_log">ログ無し</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -265,6 +316,10 @@ export default function AccessLogsPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* Loading and Error Messages */}
+        {isLoading && <div className="text-sm text-muted-foreground">読み込み中…</div>}
+        {error && <div className="text-sm text-red-600">エラー: {error}</div>}
 
         <Card>
           <CardContent className="p-0">
@@ -285,7 +340,9 @@ export default function AccessLogsPage() {
                     <TableRow>
                       <TableCell colSpan={6} className="h-32 text-center">
                         <div className="flex flex-col items-center justify-center gap-2">
-                          <p className="text-sm text-muted-foreground">条件に一致するログがありません</p>
+                          <p className="text-sm text-muted-foreground">
+                            {isLoading ? "読み込み中..." : "条件に一致するログがありません"}
+                          </p>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -297,7 +354,7 @@ export default function AccessLogsPage() {
                         <TableCell>
                           <Badge variant={getLogTypeBadgeVariant(log.type)}>{getLogTypeLabel(log.type)}</Badge>
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{log.device}</TableCell>
+                        <TableCell className="font-mono text-sm text-muted-foreground">{log.device}</TableCell>
                         <TableCell>
                           <Badge variant={getNotificationBadgeVariant(log.notification)}>
                             {getNotificationLabel(log.notification)}
@@ -367,7 +424,7 @@ export default function AccessLogsPage() {
                       <SelectContent>
                         <SelectItem value="entry">入室</SelectItem>
                         <SelectItem value="exit">退室</SelectItem>
-                        <SelectItem value="forced_exit">強制退室</SelectItem>
+                        <SelectItem value="no_log">ログ無し</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
