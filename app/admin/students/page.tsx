@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { AdminLayout } from "@/components/admin/admin-layout"
 import { Button } from "@/components/ui/button"
@@ -78,7 +78,9 @@ const mockStudents: Student[] = [
 
 export default function StudentsPage() {
   const router = useRouter()
-  const [students, setStudents] = useState<Student[]>(mockStudents)
+  const [students, setStudents] = useState<Student[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
@@ -90,6 +92,50 @@ export default function StudentsPage() {
     status: "active" as StudentStatus,
     class: undefined as StudentClass | undefined,
   })
+
+  async function loadStudents() {
+    try {
+      setLoading(true)
+      setLoadError(null)
+
+      const res = await fetch("/api/students", { cache: "no-store" })
+      const json = await res.json()
+
+      if (!json.ok) throw new Error(JSON.stringify(json.error))
+
+      const rows = (json.students ?? []) as Array<{
+        id: string
+        name: string
+        grade: string | null
+        status: "active" | "suspended" | "withdrawn"
+        created_at: string
+      }>
+
+      // 既存UI用の型に合わせて埋める（未実装項目は空）
+      const mapped: Student[] = rows.map((r) => ({
+        id: r.id,
+        name: r.name,
+        grade: r.grade ?? undefined,
+        status: r.status,
+        class: undefined,
+        lastEvent: undefined,
+        lastEventTime: undefined,
+        notificationCount: 0,
+        notificationRecipients: [],
+      }))
+
+      setStudents(mapped)
+    } catch (e: any) {
+      setLoadError(e?.message ?? "load error")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadStudents()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const filteredStudents = students.filter((student) => {
     const matchesSearch = student.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -151,18 +197,27 @@ export default function StudentsPage() {
     router.push(`/admin/students/${studentId}`)
   }
 
-  const handleAddStudent = () => {
-    const student: Student = {
-      id: Date.now().toString(),
-      name: newStudent.name,
-      grade: newStudent.grade || undefined,
-      status: newStudent.status,
-      class: newStudent.class,
-      notificationCount: 0,
+  const handleAddStudent = async () => {
+    try {
+      const res = await fetch("/api/students", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newStudent.name.trim(),
+          grade: newStudent.grade.trim() || null,
+        }),
+      })
+      const json = await res.json()
+      if (!json.ok) throw new Error(JSON.stringify(json.error))
+
+      setIsAddDialogOpen(false)
+      setNewStudent({ name: "", grade: "", status: "active", class: undefined })
+
+      // 追加後に再取得（確実）
+      await loadStudents()
+    } catch (e: any) {
+      alert(e?.message ?? "登録に失敗しました")
     }
-    setStudents([...students, student])
-    setIsAddDialogOpen(false)
-    setNewStudent({ name: "", grade: "", status: "active", class: undefined })
   }
 
   const handleEditStudent = (student: Student) => {
@@ -273,6 +328,10 @@ export default function StudentsPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Loading and Error Messages */}
+        {loading && <p className="text-sm text-muted-foreground">読み込み中...</p>}
+        {loadError && <p className="text-sm text-destructive">読み込み失敗: {loadError}</p>}
 
         {/* Students Table */}
         <Card>
