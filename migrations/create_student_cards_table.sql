@@ -20,3 +20,5 @@ COMMENT ON COLUMN student_cards.card_token_id IS 'カードトークンID（card
 COMMENT ON COLUMN student_cards.created_at IS '紐付け作成日時';
 
 
+
+

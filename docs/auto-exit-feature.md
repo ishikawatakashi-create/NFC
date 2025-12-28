@@ -273,3 +273,5 @@ curl http://localhost:3001/api/auto-exit
 **バージョン**: 1.0.0
 
 
+
+

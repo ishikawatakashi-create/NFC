@@ -17,3 +17,5 @@ ALTER COLUMN role SET DEFAULT 'student';
 COMMENT ON COLUMN students.role IS '属性（student: 生徒, part_time: アルバイト, full_time: 正社員）';
 
 
+
+

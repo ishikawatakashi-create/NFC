@@ -10,3 +10,5 @@ COMMENT ON COLUMN students.last_event_type IS '最終イベント種別（entry:
 COMMENT ON COLUMN students.last_event_timestamp IS '最終イベント日時';
 
 
+
+

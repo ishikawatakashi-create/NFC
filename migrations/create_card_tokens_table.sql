@@ -25,3 +25,5 @@ COMMENT ON COLUMN card_tokens.disabled_at IS 'トークン無効化日時';
 COMMENT ON COLUMN card_tokens.note IS '備考（任意）';
 
 
+
+
