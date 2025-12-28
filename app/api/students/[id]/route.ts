@@ -94,6 +94,168 @@ export async function GET(
   }
 }
 
+// 個別の生徒情報を更新（PATCH用 - 部分更新）
+export async function PATCH(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const body = await req.json();
+    const { name, grade, class: studentClass, status, role, cardId, card_id, access_start_time, access_end_time, has_custom_access_time } = body as { 
+      name?: string; 
+      grade?: string; 
+      class?: string | null; 
+      status?: string;
+      role?: string;
+      cardId?: string | null;
+      card_id?: string | null;
+      access_start_time?: string | null;
+      access_end_time?: string | null;
+      has_custom_access_time?: boolean;
+    };
+
+    const siteId = process.env.SITE_ID;
+
+    if (!siteId) {
+      return NextResponse.json(
+        { ok: false, error: "SITE_ID が .env.local に設定されていません" },
+        { status: 500 }
+      );
+    }
+
+    if (!id) {
+      return NextResponse.json({ ok: false, error: "id は必須です" }, { status: 400 });
+    }
+
+    const supabase = getSupabase();
+
+    // 現在の生徒情報を取得
+    const { data: currentStudent } = await supabase
+      .from("students")
+      .select("name, role, access_start_time, access_end_time, has_custom_access_time")
+      .eq("id", id)
+      .eq("site_id", siteId)
+      .single();
+
+    if (!currentStudent) {
+      return NextResponse.json({ ok: false, error: "生徒が見つかりません" }, { status: 404 });
+    }
+
+    // 更新データを構築（提供されたフィールドのみ）
+    const updateData: any = {};
+
+    if (name !== undefined) updateData.name = name;
+    if (grade !== undefined) updateData.grade = grade ?? null;
+    if (status !== undefined) updateData.status = status;
+    if (role !== undefined) updateData.role = role;
+    if (studentClass !== undefined) updateData.class = studentClass;
+    
+    // cardId と card_id の両方に対応
+    const cardIdValue = cardId !== undefined ? cardId : card_id;
+    if (cardIdValue !== undefined) updateData.card_id = cardIdValue;
+
+    if (access_start_time !== undefined) updateData.access_start_time = access_start_time;
+    if (access_end_time !== undefined) updateData.access_end_time = access_end_time;
+    if (has_custom_access_time !== undefined) updateData.has_custom_access_time = has_custom_access_time;
+
+    // 更新するフィールドがない場合
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json({ ok: false, error: "更新するフィールドが指定されていません" }, { status: 400 });
+    }
+
+    // 役割に基づいた開放時間の自動設定
+    const newRole = role !== undefined ? role : currentStudent?.role;
+    const hasCustomAccessTime = has_custom_access_time !== undefined 
+      ? has_custom_access_time 
+      : currentStudent?.has_custom_access_time;
+    
+    const shouldUseRoleBasedTime = 
+      (access_start_time === undefined && access_end_time === undefined) && 
+      (!hasCustomAccessTime || hasCustomAccessTime === false);
+
+    if (shouldUseRoleBasedTime && newRole && role !== undefined) {
+      const roleAccessTime = await getRoleBasedAccessTime(
+        siteId,
+        newRole as "student" | "part_time" | "full_time"
+      );
+      
+      if (roleAccessTime) {
+        updateData.access_start_time = roleAccessTime.start_time;
+        updateData.access_end_time = roleAccessTime.end_time;
+        updateData.has_custom_access_time = false;
+      }
+    }
+
+    // データベースを更新
+    let { data, error } = await supabase
+      .from("students")
+      .update(updateData)
+      .eq("id", id)
+      .eq("site_id", siteId)
+      .select("id,name,grade,status,class,role,card_id,last_event_type,last_event_timestamp,access_start_time,access_end_time,has_custom_access_time,created_at")
+      .single();
+
+    // カラムが存在しない場合のフォールバック
+    if (error && (error.message?.includes("column students.class does not exist") ||
+                  error.message?.includes("column students.role does not exist") ||
+                  error.message?.includes("column students.card_id does not exist") ||
+                  error.message?.includes("column students.last_event_type does not exist") ||
+                  error.message?.includes("column students.access_start_time does not exist"))) {
+      
+      const updateDataFallback: any = {};
+      if (name !== undefined) updateDataFallback.name = name;
+      if (grade !== undefined) updateDataFallback.grade = grade ?? null;
+      if (status !== undefined) updateDataFallback.status = status;
+
+      const { data: dataFallback, error: errorFallback } = await supabase
+        .from("students")
+        .update(updateDataFallback)
+        .eq("id", id)
+        .eq("site_id", siteId)
+        .select("id,name,grade,status,created_at")
+        .single();
+
+      if (errorFallback) {
+        const errorMessage = errorFallback.message || String(errorFallback);
+        return NextResponse.json({ ok: false, error: errorMessage }, { status: 500 });
+      }
+
+      data = dataFallback ? { 
+        ...dataFallback, 
+        class: null,
+        role: null,
+        card_id: null,
+        last_event_type: null,
+        last_event_timestamp: null,
+        access_start_time: null,
+        access_end_time: null,
+        has_custom_access_time: false
+      } : null;
+      error = null;
+    }
+
+    if (error) {
+      const errorMessage = error.message || String(error);
+      return NextResponse.json({ ok: false, error: errorMessage }, { status: 500 });
+    }
+
+    if (!data) {
+      return NextResponse.json({ ok: false, error: "生徒が見つかりません" }, { status: 404 });
+    }
+
+    const student = {
+      ...data,
+      id: String(data.id),
+    };
+
+    return NextResponse.json({ ok: true, student });
+  } catch (e: any) {
+    const errorMessage = e?.message || String(e) || "Unknown error";
+    return NextResponse.json({ ok: false, error: errorMessage }, { status: 500 });
+  }
+}
+
 // 個別の生徒情報を更新
 export async function PUT(
   req: Request,

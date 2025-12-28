@@ -127,6 +127,48 @@ export async function POST(req: Request) {
 
     const supabase = getSupabase();
 
+    // 生徒の現在の状態を確認
+    const { data: studentData, error: studentError } = await supabase
+      .from("students")
+      .select("id, name, last_event_type")
+      .eq("id", studentId)
+      .eq("site_id", siteId)
+      .single();
+
+    if (studentError) {
+      const errorMessage = studentError.message || String(studentError);
+      return NextResponse.json({ ok: false, error: errorMessage }, { status: 500 });
+    }
+
+    if (!studentData) {
+      return NextResponse.json({ ok: false, error: "生徒が見つかりません" }, { status: 404 });
+    }
+
+    // 不正な操作をチェック（ログに残さずエラーを返す）
+    const currentEventType = studentData.last_event_type;
+    
+    // 退室状態で退室操作があった場合
+    if (currentEventType === "exit" && eventType === "exit") {
+      return NextResponse.json(
+        { 
+          ok: false, 
+          error: `${studentData.name || "この生徒"}さんは既に退室済みです。` 
+        },
+        { status: 400 }
+      );
+    }
+
+    // 入室状態で入室操作があった場合
+    if (currentEventType === "entry" && eventType === "entry") {
+      return NextResponse.json(
+        { 
+          ok: false, 
+          error: `${studentData.name || "この生徒"}さんは既に入室済みです。` 
+        },
+        { status: 400 }
+      );
+    }
+
     // ログを作成
     const { data: logData, error: logError } = await supabase
       .from("access_logs")

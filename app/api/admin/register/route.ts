@@ -76,25 +76,58 @@ export async function POST(req: Request) {
 
     const supabase = getSupabaseAdmin();
 
-    // 1. Supabase Authでユーザーを作成
-    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true, // メール確認をスキップ（管理者登録なので）
-    });
-
-    if (authError || !authData.user) {
-      return NextResponse.json(
-        { ok: false, error: `ユーザー作成に失敗しました: ${authError?.message}` },
-        { status: 500 }
-      );
+    // 1. 既存のユーザーを検索
+    const { data: existingUsers, error: listError } = await supabase.auth.admin.listUsers();
+    
+    let authUserId: string | null = null;
+    let isNewUser = false;
+    
+    if (!listError && existingUsers) {
+      const existingUser = existingUsers.users.find((u) => u.email === email);
+      if (existingUser) {
+        authUserId = existingUser.id;
+        
+        // 既にadminsテーブルに登録されているか確認
+        const { data: existingAdmin } = await supabase
+          .from("admins")
+          .select("id")
+          .eq("auth_user_id", authUserId)
+          .eq("site_id", siteId)
+          .single();
+        
+        if (existingAdmin) {
+          return NextResponse.json(
+            { ok: false, error: "このメールアドレスは既に管理者として登録されています" },
+            { status: 400 }
+          );
+        }
+      }
     }
 
-    // 2. 管理者情報をadminsテーブルに登録
+    // 2. 既存ユーザーがいない場合は新規作成
+    if (!authUserId) {
+      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true, // メール確認をスキップ（管理者登録なので）
+      });
+
+      if (authError || !authData.user) {
+        return NextResponse.json(
+          { ok: false, error: `ユーザー作成に失敗しました: ${authError?.message}` },
+          { status: 500 }
+        );
+      }
+      
+      authUserId = authData.user.id;
+      isNewUser = true;
+    }
+
+    // 3. 管理者情報をadminsテーブルに登録
     const { data: adminData, error: adminError } = await supabase
       .from("admins")
       .insert({
-        auth_user_id: authData.user.id,
+        auth_user_id: authUserId,
         site_id: siteId,
         first_name: firstName,
         last_name: lastName,
@@ -104,8 +137,10 @@ export async function POST(req: Request) {
       .single();
 
     if (adminError || !adminData) {
-      // ロールバック: 作成したAuthユーザーを削除
-      await supabase.auth.admin.deleteUser(authData.user.id);
+      // ロールバック: 新規作成したAuthユーザーのみ削除（既存ユーザーの場合は削除しない）
+      if (isNewUser && authUserId) {
+        await supabase.auth.admin.deleteUser(authUserId);
+      }
 
       return NextResponse.json(
         { ok: false, error: `管理者登録に失敗しました: ${adminError?.message}` },

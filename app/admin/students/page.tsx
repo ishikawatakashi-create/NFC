@@ -63,9 +63,10 @@ export default function StudentsPage() {
   const [editingStudent, setEditingStudent] = useState<Student | null>(null)
   const [registeringCardStudent, setRegisteringCardStudent] = useState<Student | null>(null)
   const [deletingCardStudent, setDeletingCardStudent] = useState<Student | null>(null)
-  const [nfcStatus, setNfcStatus] = useState<"idle" | "issuing" | "writing" | "success" | "error">("idle")
+  const [nfcStatus, setNfcStatus] = useState<"idle" | "manual" | "issuing" | "writing" | "success" | "error">("idle")
   const [nfcError, setNfcError] = useState<string>("")
   const [registeredToken, setRegisteredToken] = useState<string>("")
+  const [manualCardId, setManualCardId] = useState<string>("")
   const [newStudent, setNewStudent] = useState({
     name: "",
     grade: "",
@@ -397,6 +398,35 @@ export default function StudentsPage() {
     setNfcStatus("idle")
     setNfcError("")
     setRegisteredToken("")
+    setManualCardId("")
+  }
+
+  const handleManualCardIdSubmit = async () => {
+    if (!registeringCardStudent || !manualCardId.trim()) return
+
+    try {
+      setNfcStatus("writing")
+      setNfcError("")
+
+      const updateRes = await fetch(`/api/students/${registeringCardStudent.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cardId: manualCardId.trim() }),
+      })
+      const updateData = await updateRes.json()
+
+      if (!updateRes.ok || !updateData?.ok) {
+        throw new Error(updateData?.error || "カード登録に失敗しました")
+      }
+
+      setNfcStatus("success")
+      setRegisteredToken(manualCardId.trim())
+      await loadStudents()
+    } catch (e: any) {
+      setNfcStatus("error")
+      const errorMessage = e?.message || String(e) || "カード登録に失敗しました"
+      setNfcError(errorMessage)
+    }
   }
 
   const handleStartCardWrite = async () => {
@@ -420,38 +450,93 @@ export default function StudentsPage() {
       setNfcStatus("issuing")
       setNfcError("")
 
-      // 1. サーバからトークンを発行
-      const issueRes = await fetch("/api/cards/issue", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ studentId: registeringCardStudent.id }),
-      })
-      const issueData = await issueRes.json()
+      // 1. NFCカードのシリアル番号を読み取る
+      const ndef = new (window as any).NDEFReader()
+      await ndef.scan()
 
-      if (!issueRes.ok || !issueData?.ok) {
-        throw new Error(issueData?.error || "トークン発行に失敗しました")
+      console.log("NFC scan started, waiting for card...")
+
+      let isProcessing = false // 重複処理を防ぐフラグ
+
+      // タイムアウト設定（20秒）
+      const timeoutId = setTimeout(() => {
+        if (!isProcessing) {
+          setNfcStatus("error")
+          setNfcError("タイムアウトしました。もう一度お試しください。\n※ カードは1-2秒タッチして離してください。")
+        }
+      }, 20000)
+
+      // カード処理の共通ハンドラ
+      const processCard = async (serialNumber: string) => {
+        if (isProcessing) {
+          console.log("Already processing, skipping...")
+          return
+        }
+
+        isProcessing = true
+        clearTimeout(timeoutId)
+
+        try {
+          console.log("Card detected! Serial:", serialNumber)
+
+          if (!serialNumber) {
+            throw new Error("カードのシリアル番号を読み取れませんでした")
+          }
+
+          setNfcStatus("writing")
+          setRegisteredToken(serialNumber)
+
+          // シリアル番号を生徒に紐付ける
+          const updateRes = await fetch(`/api/students/${registeringCardStudent.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ cardId: serialNumber }),
+          })
+          const updateData = await updateRes.json()
+
+          if (!updateRes.ok || !updateData?.ok) {
+            throw new Error(updateData?.error || "カード登録に失敗しました")
+          }
+
+          // 成功
+          setNfcStatus("success")
+          console.log("Card registered successfully!")
+
+          // 一覧を更新
+          await loadStudents()
+        } catch (e: any) {
+          setNfcStatus("error")
+          const errorMessage = e?.message || String(e) || "カード登録に失敗しました"
+          setNfcError(errorMessage)
+          console.error("Card registration error:", e)
+        }
       }
 
-      const token = issueData.token
-
-      // 2. Web NFCでカードに書き込み
-      setNfcStatus("writing")
-
-      const ndef = new (window as any).NDEFReader()
-      await ndef.write({
-        records: [{ recordType: "text", data: token }],
+      // reading イベント（NDEF対応カード）
+      ndef.addEventListener("reading", async (event: any) => {
+        console.log("Reading event:", event)
+        const { serialNumber } = event
+        await processCard(serialNumber)
       })
 
-      // 3. 成功
-      setNfcStatus("success")
-      setRegisteredToken(token)
-
-      // 一覧を更新
-      await loadStudents()
+      // readingerror イベント（NDEF非対応カード: Suica, マイナンバーカード等）
+      ndef.addEventListener("readingerror", async (event: any) => {
+        console.log("Reading error event (NDEF not supported, but serial number available):", event)
+        const { serialNumber } = event
+        if (serialNumber) {
+          console.log("Serial number from error event:", serialNumber)
+          await processCard(serialNumber)
+        } else {
+          console.error("No serial number in error event")
+          setNfcStatus("error")
+          setNfcError("カードのシリアル番号を読み取れませんでした。")
+        }
+      })
     } catch (e: any) {
       setNfcStatus("error")
       const errorMessage = e?.message || String(e) || "カード登録に失敗しました"
       setNfcError(errorMessage)
+      console.error("NFC scan error:", e)
     }
   }
 
@@ -1195,32 +1280,56 @@ export default function StudentsPage() {
             {nfcStatus === "idle" && (
               <div className="space-y-3">
                 <div className="rounded-md bg-muted p-4 text-sm">
-                  <p className="font-semibold mb-2">手順：</p>
+                  <p className="font-semibold mb-2">方法1: NFCで自動読み取り（Unit Link等のNDEF対応カード）</p>
                   <ol className="list-decimal list-inside space-y-1">
                     <li>Android端末（Chrome推奨）を用意してください</li>
-                    <li>NFCカードを準備してください</li>
-                    <li>「開始」ボタンを押してください</li>
+                    <li>登録したいNFCカードを準備してください</li>
+                    <li>「NFCで読み取り」ボタンを押してください</li>
                     <li>カードを端末にタッチしてください</li>
                   </ol>
                 </div>
+                <div className="rounded-md bg-yellow-50 p-4 text-sm">
+                  <p className="font-semibold mb-2 text-yellow-900">⚠️ 注意: Suica、マイナンバーカード等は読み取れません</p>
+                  <p className="text-xs text-yellow-800">
+                    これらのカードを使用する場合は、「手動で入力」を選択してください。
+                  </p>
+                </div>
                 <p className="text-xs text-muted-foreground">
-                  ※ 既に登録済みのカードがある場合は自動的に無効化され、新しいカードが登録されます。
+                  ※ カードのシリアル番号（UID）を読み取って登録します。カードへの書き込みは行いません。
                 </p>
               </div>
             )}
 
+            {nfcStatus === "manual" && (
+              <div className="space-y-3">
+                <div className="rounded-md bg-muted p-4 text-sm">
+                  <p className="font-semibold mb-2">カードIDを手動で入力</p>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Suica、マイナンバーカード等のカードIDを入力してください。
+                  </p>
+                  <Input
+                    placeholder="例: 04:1a:2b:3c:4d:5e:6f"
+                    value={manualCardId}
+                    onChange={(e) => setManualCardId(e.target.value)}
+                    className="font-mono"
+                  />
+                </div>
+              </div>
+            )}
+
             {nfcStatus === "issuing" && (
-              <div className="flex items-center gap-3 rounded-md bg-blue-50 p-4">
-                <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent"></div>
-                <p className="text-sm text-blue-900">トークンを発行しています...</p>
+              <div className="flex flex-col items-center gap-3 rounded-md bg-blue-50 p-6">
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent"></div>
+                <p className="text-sm font-semibold text-blue-900">カードを端末にタッチしてください</p>
+                <p className="text-xs text-blue-700">シリアル番号を読み取り中...</p>
               </div>
             )}
 
             {nfcStatus === "writing" && (
               <div className="flex flex-col items-center gap-3 rounded-md bg-blue-50 p-6">
                 <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent"></div>
-                <p className="text-sm font-semibold text-blue-900">カードを端末にタッチしてください</p>
-                <p className="text-xs text-blue-700">書き込み中...</p>
+                <p className="text-sm font-semibold text-blue-900">登録中...</p>
+                <p className="text-xs text-blue-700">サーバーに保存しています...</p>
               </div>
             )}
 
@@ -1229,11 +1338,11 @@ export default function StudentsPage() {
                 <div className="rounded-md bg-green-50 p-4">
                   <p className="text-sm font-semibold text-green-900 mb-2">✓ 登録完了</p>
                   <p className="text-xs text-green-700">
-                    カードへの書き込みが完了しました。
+                    カードのシリアル番号を登録しました。
                   </p>
                   {registeredToken && (
                     <p className="text-xs text-green-700 mt-2 font-mono break-all">
-                      トークン: ...{registeredToken.slice(-8)}
+                      カードID: {registeredToken}
                     </p>
                   )}
                 </div>
@@ -1265,7 +1374,20 @@ export default function StudentsPage() {
                 <Button variant="outline" onClick={handleCancelCardRegister}>
                   キャンセル
                 </Button>
-                <Button onClick={handleStartCardWrite}>開始</Button>
+                <Button variant="outline" onClick={() => setNfcStatus("manual")}>
+                  手動で入力
+                </Button>
+                <Button onClick={handleStartCardWrite}>NFCで読み取り</Button>
+              </>
+            )}
+            {nfcStatus === "manual" && (
+              <>
+                <Button variant="outline" onClick={() => { setNfcStatus("idle"); setManualCardId(""); }}>
+                  戻る
+                </Button>
+                <Button onClick={handleManualCardIdSubmit} disabled={!manualCardId.trim()}>
+                  登録
+                </Button>
               </>
             )}
             {(nfcStatus === "success" || nfcStatus === "error") && (
@@ -1383,7 +1505,7 @@ export default function StudentsPage() {
               <p className="text-sm text-muted-foreground">
                 「<span className="font-semibold text-foreground">{deletingCardStudent.name}</span>」のカード登録を削除してもよろしいですか？
                 <br />
-                この操作により、カードトークンは無効化され、カード紐付けが削除されます。
+                この操作により、カードの紐付けが削除されます。
                 <br />
                 この操作は取り消せません。
               </p>

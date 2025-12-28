@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { CheckCircle2, XCircle, Loader2, CreditCard } from "lucide-react"
+import { CheckCircle2, XCircle, Loader2, CreditCard, Smartphone, ArrowDown, RotateCw } from "lucide-react"
 
 export default function KioskExitPage() {
   const [isScanning, setIsScanning] = useState(false)
@@ -50,50 +50,43 @@ export default function KioskExitPage() {
       const ndef = new NDEFReader()
 
       await ndef.scan()
+      console.log("NFC scan started, waiting for card...")
 
-      ndef.addEventListener("reading", async (event: any) => {
+      let isProcessing = false // 重複処理を防ぐフラグ
+
+      // カード処理の共通ハンドラ
+      const processCard = async (serialNumber: string) => {
+        if (isProcessing) return
+        isProcessing = true
+        console.log("Card detected! Serial:", serialNumber)
+
         try {
-          const { message, serialNumber } = event
-
-          // NDEFメッセージからトークンを読み取る
-          let token: string | null = null
-          
-          if (message && message.records && message.records.length > 0) {
-            for (const record of message.records) {
-              if (record.recordType === "text") {
-                const textDecoder = new TextDecoder(record.encoding || "utf-8")
-                const text = textDecoder.decode(record.data)
-                // "iru:card:" で始まるトークンを探す
-                if (text.startsWith("iru:card:")) {
-                  token = text
-                  break
-                }
-              }
-            }
-          }
-
-          if (!token) {
+          // シリアル番号の確認
+          if (!serialNumber) {
             setLastResult({
               success: false,
-              message: "カードに有効なトークンが書き込まれていません。管理画面でカード登録を行ってください。",
+              message: "カードのシリアル番号を読み取れませんでした。",
               timestamp: formatDateTime(new Date()),
             })
             setIsScanning(false)
             return
           }
 
-          // トークンから生徒を検索
+          const cardSerial = serialNumber
+
+          // シリアル番号から生徒を検索
           const verifyRes = await fetch("/api/cards/verify", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ token }),
+            body: JSON.stringify({ serialNumber: cardSerial }),
           })
           const verifyData = await verifyRes.json()
 
           if (!verifyRes.ok || !verifyData?.ok) {
             setLastResult({
               success: false,
-              message: verifyData?.error || "カードの検証に失敗しました。",
+              message: verifyData?.error || "このカードは登録されていません。管理画面でカード登録を行ってください。",
+              cardId: cardSerial,
               timestamp: formatDateTime(new Date()),
             })
             setIsScanning(false)
@@ -110,10 +103,10 @@ export default function KioskExitPage() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               studentId,
-              cardId: token, // トークンを記録
-              deviceId: "kiosk-exit", // 端末IDとして固定値を使用
+              cardId: cardSerial,
+              deviceId: "kiosk-exit",
               eventType: "exit",
-              notificationStatus: "not_required", // 退室時は通知不要とする
+              notificationStatus: "not_required",
             }),
           })
 
@@ -123,7 +116,7 @@ export default function KioskExitPage() {
             setLastResult({
               success: true,
               studentName,
-              cardId: `...${token.slice(-8)}`, // トークン末尾8文字のみ表示
+              cardId: cardSerial,
               message: `${studentName}さんの退室を記録しました。`,
               timestamp: formatDateTime(new Date()),
             })
@@ -131,7 +124,7 @@ export default function KioskExitPage() {
             setLastResult({
               success: false,
               studentName,
-              cardId: `...${token.slice(-8)}`,
+              cardId: cardSerial,
               message: logData?.error || "ログの記録に失敗しました。",
               timestamp: formatDateTime(new Date()),
             })
@@ -143,6 +136,28 @@ export default function KioskExitPage() {
             timestamp: formatDateTime(new Date()),
           })
         } finally {
+          setIsScanning(false)
+        }
+      }
+
+      // reading イベント（NDEF対応カード）
+      ndef.addEventListener("reading", async (event: any) => {
+        const { serialNumber } = event
+        await processCard(serialNumber)
+      })
+
+      // readingerror イベント（NDEF非対応カード: Suica, マイナンバーカード等）
+      ndef.addEventListener("readingerror", async (event: any) => {
+        console.log("Reading error (NDEF not supported):", event)
+        const { serialNumber } = event
+        if (serialNumber) {
+          await processCard(serialNumber)
+        } else {
+          setLastResult({
+            success: false,
+            message: "カードのシリアル番号を読み取れませんでした。",
+            timestamp: formatDateTime(new Date()),
+          })
           setIsScanning(false)
         }
       })
@@ -185,24 +200,64 @@ export default function KioskExitPage() {
           )}
 
           <div className="flex flex-col items-center justify-center space-y-4">
-            <div className="relative">
-              <div className="w-32 h-32 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
-                {isScanning ? (
-                  <Loader2 className="w-16 h-16 text-orange-600 dark:text-orange-400 animate-spin" />
-                ) : (
-                  <CreditCard className="w-16 h-16 text-orange-600 dark:text-orange-400" />
-                )}
+            {isScanning ? (
+              // 読み取り中: 背面タッチガイドを表示
+              <div className="flex flex-col items-center justify-center space-y-6 w-full">
+                <div className="relative">
+                  {/* 端末の背面を示すアイコン */}
+                  <div className="flex flex-col items-center space-y-2">
+                    <div className="relative">
+                      <Smartphone className="w-24 h-24 text-orange-600 dark:text-orange-400" />
+                      <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2">
+                        <ArrowDown className="w-8 h-8 text-orange-600 dark:text-orange-400 animate-bounce" />
+                      </div>
+                    </div>
+                    {/* カードアイコン（表側を見せながら背面に当てる様子） */}
+                    <div className="relative mt-4">
+                      <div className="flex items-center space-x-2">
+                        <CreditCard className="w-12 h-12 text-orange-600 dark:text-orange-400" />
+                        <RotateCw className="w-6 h-6 text-orange-600 dark:text-orange-400 animate-spin" style={{ animationDuration: '2s' }} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="bg-orange-50 dark:bg-orange-900/30 border-2 border-orange-300 dark:border-orange-700 rounded-lg p-4 w-full max-w-md">
+                  <p className="text-center font-semibold text-orange-900 dark:text-orange-100 text-lg mb-2">
+                    端末の背面にカードを当ててください
+                  </p>
+                  <p className="text-center text-sm text-orange-700 dark:text-orange-300">
+                    カードの表側を上に向けて、端末の背面中央に当ててください
+                  </p>
+                </div>
+                
+                <Loader2 className="w-8 h-8 text-orange-600 dark:text-orange-400 animate-spin" />
               </div>
-            </div>
+            ) : (
+              // 待機中: 通常の表示
+              <>
+                <div className="relative">
+                  <div className="w-32 h-32 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+                    <CreditCard className="w-16 h-16 text-orange-600 dark:text-orange-400" />
+                  </div>
+                </div>
 
-            <Button
-              onClick={handleScan}
-              disabled={isScanning || !isNfcSupported}
-              size="lg"
-              className="w-full max-w-xs"
-            >
-              {isScanning ? "読み取り中..." : "カードをタッチ"}
-            </Button>
+                <Button
+                  onClick={handleScan}
+                  disabled={isScanning || !isNfcSupported}
+                  size="lg"
+                  className="w-full max-w-xs"
+                >
+                  カードをタッチ
+                </Button>
+                
+                <div className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-3 w-full max-w-md">
+                  <p className="text-center text-sm text-orange-800 dark:text-orange-200">
+                    💡 カードは端末の<strong>背面</strong>に当ててください
+                  </p>
+                </div>
+              </>
+            )}
           </div>
 
           {lastResult && (
@@ -226,7 +281,7 @@ export default function KioskExitPage() {
                       )}
                       {lastResult.cardId && (
                         <p className="text-sm text-muted-foreground">
-                          トークン: <span className="font-mono">{lastResult.cardId}</span>
+                          カードID: <span className="font-mono">{lastResult.cardId}</span>
                         </p>
                       )}
                       {lastResult.timestamp && (
