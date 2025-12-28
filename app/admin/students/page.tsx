@@ -408,10 +408,13 @@ export default function StudentsPage() {
       setNfcStatus("writing")
       setNfcError("")
 
+      // シリアル番号の正規化（小文字に統一、前後の空白を削除）
+      const normalizedCardId = manualCardId.trim().toLowerCase()
+
       const updateRes = await fetch(`/api/students/${registeringCardStudent.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cardId: manualCardId.trim() }),
+        body: JSON.stringify({ cardId: normalizedCardId }),
       })
       const updateData = await updateRes.json()
 
@@ -420,7 +423,7 @@ export default function StudentsPage() {
       }
 
       setNfcStatus("success")
-      setRegisteredToken(manualCardId.trim())
+      setRegisteredToken(normalizedCardId)
       await loadStudents()
     } catch (e: any) {
       setNfcStatus("error")
@@ -483,14 +486,17 @@ export default function StudentsPage() {
             throw new Error("カードのシリアル番号を読み取れませんでした")
           }
 
+          // シリアル番号の正規化（小文字に統一、前後の空白を削除）
+          const normalizedSerial = serialNumber.trim().toLowerCase()
+
           setNfcStatus("writing")
-          setRegisteredToken(serialNumber)
+          setRegisteredToken(normalizedSerial)
 
           // シリアル番号を生徒に紐付ける
           const updateRes = await fetch(`/api/students/${registeringCardStudent.id}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ cardId: serialNumber }),
+            body: JSON.stringify({ cardId: normalizedSerial }),
           })
           const updateData = await updateRes.json()
 
@@ -522,14 +528,31 @@ export default function StudentsPage() {
       // readingerror イベント（NDEF非対応カード: Suica, マイナンバーカード等）
       ndef.addEventListener("readingerror", async (event: any) => {
         console.log("Reading error event (NDEF not supported, but serial number available):", event)
-        const { serialNumber } = event
+        console.log("Event keys:", Object.keys(event))
+        
+        // serialNumberを取得（複数の方法を試す）
+        // Androidの実装によっては、serialNumberが別のプロパティ名で提供される場合がある
+        const serialNumber = event.serialNumber || 
+                            event.message?.serialNumber || 
+                            event.uid ||
+                            event.id ||
+                            event.cardId ||
+                            null
+        
         if (serialNumber) {
           console.log("Serial number from error event:", serialNumber)
           await processCard(serialNumber)
         } else {
           console.error("No serial number in error event")
+          console.error("Available properties:", Object.keys(event))
+          console.error("Full event object:", JSON.stringify(event, null, 2))
           setNfcStatus("error")
-          setNfcError("カードのシリアル番号を読み取れませんでした。")
+          setNfcError("このカード（Suica等のFeliCaカード）は、Web NFC APIではシリアル番号を取得できません。\n\n" +
+            "【解決方法】\n" +
+            "1. NFC Toolsアプリでカードのシリアル番号を取得\n" +
+            "2. 「手動で入力」ボタンをクリック\n" +
+            "3. 取得したシリアル番号を入力して登録\n\n" +
+            "※ 本番環境では、NTAG213等のNDEF対応カードの使用を推奨します。")
         }
       })
     } catch (e: any) {

@@ -49,12 +49,9 @@ export default function KioskExitPage() {
       // @ts-ignore - Web NFC API
       const ndef = new NDEFReader()
 
-      await ndef.scan()
-      console.log("NFC scan started, waiting for card...")
-
       let isProcessing = false // 重複処理を防ぐフラグ
 
-      // カード処理の共通ハンドラ
+      // カード処理の共通ハンドラ（イベントリスナーの前に定義）
       const processCard = async (serialNumber: string) => {
         if (isProcessing) return
         isProcessing = true
@@ -72,7 +69,8 @@ export default function KioskExitPage() {
             return
           }
 
-          const cardSerial = serialNumber
+          // シリアル番号の正規化（小文字に統一、前後の空白を削除）
+          const cardSerial = serialNumber.trim().toLowerCase()
 
           // シリアル番号から生徒を検索
           const verifyRes = await fetch("/api/cards/verify", {
@@ -140,27 +138,91 @@ export default function KioskExitPage() {
         }
       }
 
+      // イベントリスナーを先に登録（scan()の前に登録することで確実にイベントをキャッチ）
       // reading イベント（NDEF対応カード）
+      // Androidの実装によっては、readingイベントでもシリアル番号が取得できる場合がある
       ndef.addEventListener("reading", async (event: any) => {
-        const { serialNumber } = event
-        await processCard(serialNumber)
+        console.log("Reading event (NDEF supported):", event)
+        console.log("Event keys:", Object.keys(event))
+        
+        // serialNumberを取得（複数の方法を試す）
+        // Androidの実装によっては、serialNumberが別のプロパティ名で提供される場合がある
+        let serialNumber = event.serialNumber || 
+                          event.message?.serialNumber || 
+                          event.uid ||
+                          event.id ||
+                          event.cardId ||
+                          null
+        
+        if (serialNumber) {
+          console.log("Serial number from reading event:", serialNumber)
+          await processCard(serialNumber)
+        } else {
+          console.log("No serial number in reading event, waiting for readingerror event...")
+          // readingイベントでシリアル番号が取得できない場合は、
+          // readingerrorイベントで処理される
+        }
       })
 
       // readingerror イベント（NDEF非対応カード: Suica, マイナンバーカード等）
       ndef.addEventListener("readingerror", async (event: any) => {
         console.log("Reading error (NDEF not supported):", event)
-        const { serialNumber } = event
+        console.log("Event keys:", Object.keys(event))
+        console.log("Event serialNumber:", event.serialNumber)
+        console.log("Event message:", event.message)
+        console.log("Event toString:", event.toString())
+        
+        // serialNumberを取得（複数の方法を試す）
+        // Androidの実装によっては、serialNumberが別のプロパティ名で提供される場合がある
+        let serialNumber = event.serialNumber || 
+                          event.message?.serialNumber || 
+                          event.uid ||
+                          event.id ||
+                          event.cardId ||
+                          null
+        
+        // イベントオブジェクト全体を文字列化して確認
+        if (!serialNumber) {
+          console.log("Full event object:", JSON.stringify(event, null, 2))
+          // イベントのすべてのプロパティを確認
+          for (const key in event) {
+            console.log(`Event[${key}]:`, event[key])
+          }
+        }
+        
         if (serialNumber) {
+          console.log("Serial number found:", serialNumber)
           await processCard(serialNumber)
         } else {
+          console.error("Serial number not found in readingerror event")
+          console.error("Event object:", event)
+          console.error("Available properties:", Object.keys(event))
+          
+          // デバッグ情報を画面に表示
+          const debugInfo = `イベントプロパティ: ${Object.keys(event).join(", ")}\n` +
+            `event.serialNumber: ${event.serialNumber}\n` +
+            `event.message: ${event.message}\n` +
+            `event.toString(): ${event.toString()}\n` +
+            `イベント全体: ${JSON.stringify(event, null, 2)}`
+          
+          console.error("Debug info:", debugInfo)
+          
           setLastResult({
             success: false,
-            message: "カードのシリアル番号を読み取れませんでした。",
+            message: "このカード（Suica等のFeliCaカード）は、Web NFC APIではシリアル番号を取得できません。\n\n" +
+              "【解決方法】\n" +
+              "1. NFC Toolsアプリでカードのシリアル番号を取得\n" +
+              "2. 管理画面で「手動で入力」からシリアル番号を登録\n" +
+              "3. 登録後、この画面でカードをタッチしてください\n\n" +
+              "※ 本番環境では、NTAG213等のNDEF対応カードの使用を推奨します。",
             timestamp: formatDateTime(new Date()),
           })
           setIsScanning(false)
         }
       })
+
+      await ndef.scan()
+      console.log("NFC scan started, waiting for card...")
 
       // タイムアウト設定（10秒）
       setTimeout(() => {

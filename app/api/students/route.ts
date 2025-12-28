@@ -136,10 +136,12 @@ export async function GET(req: Request) {
       isRegistered: false,
       isActive: false,
     };
+    // students.card_idが存在する場合も登録済みと判定（後方互換性のため）
+    const isCardRegistered = cardInfo.isRegistered || (student.card_id != null && student.card_id.trim() !== "");
     return {
       ...student,
-      card_registered: cardInfo.isRegistered,
-      card_active: cardInfo.isActive,
+      card_registered: isCardRegistered,
+      card_active: cardInfo.isActive || isCardRegistered, // card_idがある場合は有効とみなす
       card_token: cardInfo.token || null,
       card_token_id: cardInfo.cardTokenId || null,
     };

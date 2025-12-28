@@ -35,11 +35,14 @@ export async function POST(req: Request) {
 
     // シリアル番号ベースの認証（優先）
     if (serialNumber) {
-      // 1. シリアル番号から生徒を直接検索
+      // シリアル番号の正規化（小文字に統一、前後の空白を削除）
+      const normalizedSerial = serialNumber.trim().toLowerCase();
+      
+      // 1. シリアル番号から生徒を直接検索（正規化後の値で検索）
       const { data: student, error: studentError } = await supabase
         .from("students")
         .select("id, name, grade, status, class, role, card_id")
-        .eq("card_id", serialNumber)
+        .eq("card_id", normalizedSerial)
         .eq("site_id", siteId)
         .single();
 

@@ -68,13 +68,38 @@ export default function NFCTestPage() {
       ndef.addEventListener("readingerror", (event: any) => {
         addLog(`⚠️ 'readingerror' event fired`)
         addLog(`   これは正常です（Suica、マイナンバーカード等）`)
-        addLog(`📋 Serial Number: ${event.serialNumber || "取得できませんでした"}`)
         
-        if (event.serialNumber) {
+        // イベントオブジェクトの詳細を確認
+        addLog(`📋 Event keys: ${Object.keys(event).join(", ")}`)
+        addLog(`📋 event.serialNumber: ${event.serialNumber || "undefined"}`)
+        addLog(`📋 event.message: ${event.message || "undefined"}`)
+        
+        // すべてのプロパティを確認
+        for (const key in event) {
+          if (key !== "serialNumber" && key !== "message") {
+            addLog(`📋 event.${key}: ${JSON.stringify(event[key])}`)
+          }
+        }
+        
+        // serialNumberを取得（複数の方法を試す）
+        let serialNumber = event.serialNumber || 
+                          event.message?.serialNumber || 
+                          event.uid ||
+                          event.id ||
+                          null
+        
+        if (serialNumber) {
           addLog(`✅ シリアル番号は取得できました！`)
+          addLog(`   Serial Number: ${serialNumber}`)
           addLog(`   カード登録/入退室記録が可能です`)
         } else {
           addLog(`❌ シリアル番号が取得できませんでした`)
+          addLog(`   イベントオブジェクト全体:`)
+          try {
+            addLog(JSON.stringify(event, null, 2))
+          } catch (e) {
+            addLog(`   (JSON化できませんでした: ${e})`)
+          }
         }
         
         setIsScanning(false)
