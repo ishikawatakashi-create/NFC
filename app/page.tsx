@@ -1,19 +1,18 @@
-import { supabase } from "@/lib/supabaseClient";
+import { getCurrentAdmin } from "@/lib/auth-helpers";
+import { redirect } from "next/navigation";
 
-export default async function TestPage() {
-  const { data, error } = await supabase
-    .from("students")
-    .select("id,name,grade,status,created_at")
-    .limit(5);
+/**
+ * トップページ
+ * 認証状態に応じて適切なページにリダイレクト
+ */
+export default async function HomePage() {
+  const admin = await getCurrentAdmin();
 
-  return (
-    <div style={{ padding: 24 }}>
-      <h1>Supabase 接続テスト</h1>
-      {error ? (
-        <pre>{JSON.stringify(error, null, 2)}</pre>
-      ) : (
-        <pre>{JSON.stringify(data, null, 2)}</pre>
-      )}
-    </div>
-  );
+  // 認証済みの場合は管理画面の生徒管理ページへ
+  if (admin) {
+    redirect("/admin/students");
+  }
+
+  // 未認証の場合はログインページへ
+  redirect("/admin/login");
 }
