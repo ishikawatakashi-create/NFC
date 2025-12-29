@@ -7,8 +7,8 @@ const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'v0 App',
-  description: 'Created with v0',
+  title: 'ロボ団一宮校 - 入退室管理',
+  description: 'ロボ団一宮校のNFCカードを使用した入退室管理システム',
   generator: 'v0.app',
   icons: {
     icon: [
@@ -41,7 +41,7 @@ export default function RootLayout({
         <meta name="theme-color" content="#3b82f6" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-        <meta name="apple-mobile-web-app-title" content="NFC管理" />
+        <meta name="apple-mobile-web-app-title" content="ロボ団一宮校 - 入退室管理" />
       </head>
       <body className={`font-sans antialiased`}>
         {children}
