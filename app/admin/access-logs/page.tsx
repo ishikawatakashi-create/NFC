@@ -20,7 +20,7 @@ import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
 import { Download, Filter, ChevronDown, ChevronUp, Edit } from "lucide-react"
 
-type AccessLogType = "entry" | "exit" | "no_log"
+type AccessLogType = "entry" | "exit" | "no_log" | "forced_exit"
 type NotificationStatus = "sent" | "not_required"
 
 interface AccessLog {
@@ -30,6 +30,7 @@ interface AccessLog {
   type: AccessLogType
   device: string
   notification: NotificationStatus
+  pointsAwarded?: boolean
 }
 
 interface CorrectionModalData {
@@ -95,6 +96,7 @@ export default function AccessLogsPage() {
         cardId?: string | null
         device: string
         notification: string
+        pointsAwarded?: boolean
       }> = data.logs ?? []
 
       const mapped: AccessLog[] = apiLogs.map((log) => ({
@@ -104,6 +106,7 @@ export default function AccessLogsPage() {
         type: log.type as AccessLogType,
         device: log.device || log.cardId || "不明",
         notification: log.notification as NotificationStatus,
+        pointsAwarded: log.pointsAwarded || false,
       }))
 
       setLogs(mapped)
@@ -144,7 +147,7 @@ export default function AccessLogsPage() {
         [
           log.timestamp,
           log.studentName,
-          getLogTypeLabel(log.type),
+          getLogTypeLabel(log.type, log.pointsAwarded),
           log.device,
           getNotificationLabel(log.notification),
         ].join(","),
@@ -205,12 +208,14 @@ export default function AccessLogsPage() {
     }
   }
 
-  const getLogTypeLabel = (type: AccessLogType) => {
+  const getLogTypeLabel = (type: AccessLogType, pointsAwarded?: boolean) => {
     switch (type) {
       case "entry":
-        return "入室"
+        return pointsAwarded ? "入室（ポイント付与）" : "入室"
       case "exit":
         return "退室"
+      case "forced_exit":
+        return "強制退室"
       case "no_log":
         return "ログ無し"
       default:
@@ -224,6 +229,8 @@ export default function AccessLogsPage() {
         return "default"
       case "exit":
         return "secondary"
+      case "forced_exit":
+        return "destructive"
       case "no_log":
         return "outline"
       default:
@@ -299,6 +306,7 @@ export default function AccessLogsPage() {
                       <SelectItem value="all">すべて</SelectItem>
                       <SelectItem value="entry">入室</SelectItem>
                       <SelectItem value="exit">退室</SelectItem>
+                      <SelectItem value="forced_exit">強制退室</SelectItem>
                       <SelectItem value="no_log">ログ無し</SelectItem>
                     </SelectContent>
                   </Select>
@@ -352,7 +360,9 @@ export default function AccessLogsPage() {
                         <TableCell className="font-mono text-sm">{log.timestamp}</TableCell>
                         <TableCell className="font-medium">{log.studentName}</TableCell>
                         <TableCell>
-                          <Badge variant={getLogTypeBadgeVariant(log.type)}>{getLogTypeLabel(log.type)}</Badge>
+                          <Badge variant={getLogTypeBadgeVariant(log.type)}>
+                            {getLogTypeLabel(log.type, log.pointsAwarded)}
+                          </Badge>
                         </TableCell>
                         <TableCell className="font-mono text-sm text-muted-foreground">{log.device}</TableCell>
                         <TableCell>
@@ -394,7 +404,7 @@ export default function AccessLogsPage() {
                     <div className="text-muted-foreground">種別:</div>
                     <div>
                       <Badge variant={getLogTypeBadgeVariant(selectedLog.type)}>
-                        {getLogTypeLabel(selectedLog.type)}
+                        {getLogTypeLabel(selectedLog.type, selectedLog.pointsAwarded)}
                       </Badge>
                     </div>
                   </div>
@@ -424,6 +434,7 @@ export default function AccessLogsPage() {
                       <SelectContent>
                         <SelectItem value="entry">入室</SelectItem>
                         <SelectItem value="exit">退室</SelectItem>
+                        <SelectItem value="forced_exit">強制退室</SelectItem>
                         <SelectItem value="no_log">ログ無し</SelectItem>
                       </SelectContent>
                     </Select>

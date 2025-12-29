@@ -73,21 +73,29 @@ export async function POST(req: Request) {
         student.access_start_time,
         student.access_end_time
       );
+      
+      console.log(`[AutoExit] Student ${student.name} (${student.id}): hasCustomAccessTime=${student.has_custom_access_time}, customEndTime=${student.access_end_time}, accessTime.end_time=${accessTime.end_time}`);
 
       // 終了時刻を過ぎているかチェック
-      if (!isPastEndTime(accessTime.end_time, currentTime)) {
+      const isPast = isPastEndTime(accessTime.end_time, currentTime);
+      console.log(`[AutoExit] Student ${student.name} (${student.id}): endTime=${accessTime.end_time}, currentTime=${currentTime.toISOString()}, isPast=${isPast}`);
+      
+      if (!isPast) {
         // まだ開放時間内の場合はスキップ
+        console.log(`[AutoExit] Skipping ${student.name}: still within access time`);
         continue;
       }
+      
+      console.log(`[AutoExit] Processing forced exit for ${student.name}`);
 
-      // 自動退室ログを作成
+      // 自動退室ログを作成（強制退室として記録）
       const { data: logData, error: logError } = await supabase
         .from("access_logs")
         .insert([
           {
             site_id: siteId,
             student_id: student.id,
-            event_type: "exit",
+            event_type: "forced_exit",
             card_id: null,
             device_id: "auto-exit-system",
             notification_status: "not_required",

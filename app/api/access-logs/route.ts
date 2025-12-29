@@ -9,6 +9,7 @@ import {
   addPoints,
 } from "@/lib/point-utils";
 import { getPointSettings } from "@/lib/point-settings-utils";
+import { sendLineNotificationToParents } from "@/lib/line-notification-utils";
 
 function getSupabase() {
   return createClient(
@@ -48,6 +49,7 @@ export async function GET(req: Request) {
         device_id,
         timestamp,
         notification_status,
+        points_awarded,
         students!inner(id, name, site_id)
       `)
       .eq("site_id", siteId)
@@ -89,6 +91,7 @@ export async function GET(req: Request) {
       cardId: log.card_id || null,
       device: log.device_id || log.card_id || "不明",
       notification: log.notification_status,
+      pointsAwarded: log.points_awarded || false,
     }));
 
     // 生徒名で検索（studentIdが指定されていない場合のみ）
@@ -114,7 +117,7 @@ export async function POST(req: Request) {
       studentId: string;
       cardId?: string;
       deviceId?: string;
-      eventType: "entry" | "exit" | "no_log";
+      eventType: "entry" | "exit" | "no_log" | "forced_exit";
       notificationStatus?: "sent" | "not_required";
     };
 
@@ -308,6 +311,20 @@ export async function POST(req: Request) {
         } else {
           console.log(`[Points] Student ${studentId}: Entry count (${monthlyEntryCount}) < threshold (${bonusThreshold}), no bonus`);
         }
+
+        // ポイントが付与された場合、ログのpoints_awardedをtrueに更新
+        if (Object.keys(pointsAwarded).length > 0) {
+          const { error: updatePointsError } = await supabase
+            .from("access_logs")
+            .update({ points_awarded: true })
+            .eq("id", logData.id);
+
+          if (updatePointsError) {
+            console.warn(`[Points] Failed to update points_awarded flag for log ${logData.id}:`, updatePointsError);
+          } else {
+            console.log(`[Points] Updated points_awarded flag for log ${logData.id}`);
+          }
+        }
       } catch (pointsError: any) {
         // ポイント付与のエラーはログに記録するが、入室ログ自体は成功として扱う
         console.error(`[Points] Error awarding points for student ${studentId}:`, pointsError);
@@ -320,6 +337,64 @@ export async function POST(req: Request) {
       }
     }
 
+    // 入退室時（entry/exit/forced_exit）かつ生徒ユーザーの場合、親御さんにLINE通知を送信
+    if (
+      (eventType === "entry" || eventType === "exit" || eventType === "forced_exit") &&
+      studentData.role === "student"
+    ) {
+      console.log(
+        `[LineNotification] Sending LINE notification for student ${studentData.name} (${studentId}), eventType=${eventType}`
+      );
+      try {
+        const notificationResult = await sendLineNotificationToParents(
+          siteId,
+          studentId,
+          eventType,
+          String(logData.id),
+          studentData.name
+        );
+
+        if (notificationResult.success && notificationResult.sentCount > 0) {
+          console.log(
+            `[LineNotification] Successfully sent ${notificationResult.sentCount} LINE notification(s) for student ${studentData.name}`
+          );
+          // 通知ステータスを更新
+          await supabase
+            .from("access_logs")
+            .update({ notification_status: "sent" })
+            .eq("id", logData.id);
+        } else if (notificationResult.success && notificationResult.sentCount === 0) {
+          console.log(
+            `[LineNotification] No active LINE accounts found for student ${studentData.name}. Skipping notification status update.`
+          );
+        } else {
+          console.error(
+            `[LineNotification] Failed to send LINE notification for student ${studentData.name}: ${notificationResult.error}`
+          );
+        }
+      } catch (notificationError: any) {
+        // LINE通知のエラーはログに記録するが、入退室ログ自体は成功として扱う
+        console.error(
+          `[LineNotification] Error sending LINE notification for student ${studentId}:`,
+          notificationError
+        );
+      }
+    } else {
+      if (studentData.role !== "student") {
+        console.log(
+          `[LineNotification] ❌ Student role is "${studentData.role}", not "student". Skipping LINE notification. (Student: ${studentData.name}, ID: ${studentId})`
+        );
+      } else if (
+        eventType !== "entry" &&
+        eventType !== "exit" &&
+        eventType !== "forced_exit"
+      ) {
+        console.log(
+          `[LineNotification] ❌ Event type is ${eventType}, not entry/exit/forced_exit. Skipping LINE notification.`
+        );
+      }
+    }
+
     return NextResponse.json({
       ok: true,
       log: {
@@ -329,6 +404,7 @@ export async function POST(req: Request) {
         cardId: logData.card_id,
         device: logData.device_id || logData.card_id,
         notification: logData.notification_status,
+        pointsAwarded: logData.points_awarded || false,
       },
       pointsAwarded: Object.keys(pointsAwarded).length > 0 ? pointsAwarded : undefined,
     });

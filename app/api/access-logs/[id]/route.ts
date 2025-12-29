@@ -17,7 +17,7 @@ export async function PUT(
     const { id } = await params;
     const body = await req.json();
     const { eventType, timestamp, memo } = body as {
-      eventType?: "entry" | "exit" | "no_log";
+      eventType?: "entry" | "exit" | "no_log" | "forced_exit";
       timestamp?: string;
       memo?: string;
     };

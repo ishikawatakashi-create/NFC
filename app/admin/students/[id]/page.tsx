@@ -17,7 +17,7 @@ import { useToast } from "@/hooks/use-toast"
 type StudentStatus = "active" | "suspended" | "withdrawn" | "graduated"
 type StudentClass = "kindergarten" | "beginner" | "challenger" | "creator" | "innovator"
 type UserRole = "student" | "part_time" | "full_time"
-type EventType = "entry" | "exit" | "no_log"
+type EventType = "entry" | "exit" | "no_log" | "forced_exit"
 
 interface Student {
   id: string
@@ -53,6 +53,7 @@ interface AccessLog {
   cardId?: string | null
   device: string
   notification: string
+  pointsAwarded?: boolean
 }
 
 export default function StudentDetailPage({
@@ -180,6 +181,7 @@ export default function StudentDetailPage({
             cardId: log.cardId || null,
             device: log.device || log.cardId || "不明",
             notification: log.notification,
+            pointsAwarded: log.pointsAwarded || false,
           }))
           setAccessLogs(mapped)
         }
@@ -438,13 +440,15 @@ export default function StudentDetailPage({
     }
   }
 
-  const getEventTypeLabel = (type?: EventType | null) => {
+  const getEventTypeLabel = (type?: EventType | null, pointsAwarded?: boolean) => {
     if (!type) return "-"
     switch (type) {
       case "entry":
-        return "入室"
+        return pointsAwarded ? "入室（ポイント付与）" : "入室"
       case "exit":
         return "退室"
+      case "forced_exit":
+        return "強制退室"
       case "no_log":
         return "ログ無し"
       default:
@@ -749,8 +753,16 @@ export default function StudentDetailPage({
                       <TableRow key={log.id}>
                         <TableCell>{log.timestamp}</TableCell>
                         <TableCell>
-                          <Badge variant={log.type === "entry" ? "default" : "secondary"}>
-                            {getEventTypeLabel(log.type)}
+                          <Badge 
+                            variant={
+                              log.type === "entry" 
+                                ? "default" 
+                                : log.type === "forced_exit" 
+                                ? "destructive" 
+                                : "secondary"
+                            }
+                          >
+                            {getEventTypeLabel(log.type, log.pointsAwarded)}
                           </Badge>
                         </TableCell>
                         <TableCell className="font-mono text-sm">{log.device}</TableCell>

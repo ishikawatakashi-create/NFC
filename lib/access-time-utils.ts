@@ -101,7 +101,7 @@ export async function getStudentAccessTime(
 
 /**
  * 現在時刻が開放時間終了時刻を過ぎているかチェック
- * @param endTime 終了時刻（HH:mm形式）
+ * @param endTime 終了時刻（HH:mm形式またはHH:mm:ss形式）
  * @param currentTime 現在時刻（Dateオブジェクト、省略時は現在時刻）
  * @returns 終了時刻を過ぎている場合true
  */
@@ -109,10 +109,23 @@ export function isPastEndTime(
   endTime: string,
   currentTime: Date = new Date()
 ): boolean {
-  const [hours, minutes] = endTime.split(":").map(Number);
+  // HH:mm形式またはHH:mm:ss形式に対応
+  const timeParts = endTime.split(":");
+  const hours = parseInt(timeParts[0], 10);
+  const minutes = parseInt(timeParts[1], 10);
+  
+  // 現在時刻の日付を使って、終了時刻のDateオブジェクトを作成
   const endDate = new Date(currentTime);
   endDate.setHours(hours, minutes, 0, 0);
-
-  return currentTime > endDate;
+  
+  // 現在時刻が終了時刻を過ぎているかチェック（同じ時刻も「過ぎている」と判定）
+  const isPast = currentTime >= endDate;
+  
+  // デバッグログ（開発環境のみ）
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`[isPastEndTime] endTime=${endTime}, currentTime=${currentTime.toISOString()}, endDate=${endDate.toISOString()}, isPast=${isPast}`);
+  }
+  
+  return isPast;
 }
 
