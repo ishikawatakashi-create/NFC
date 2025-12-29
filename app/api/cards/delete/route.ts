@@ -89,18 +89,20 @@ export async function DELETE(req: Request) {
           { status: 500 }
         );
       }
+    }
 
-      // studentsテーブルのcard_idもnullに更新（後方互換性のため）
-      const { error: updateError } = await supabase
-        .from("students")
-        .update({ card_id: null })
-        .eq("id", studentId)
-        .eq("site_id", siteId);
+    // studentsテーブルのcard_idもnullに更新（existingCardsが空でも実行）
+    const { error: updateError } = await supabase
+      .from("students")
+      .update({ card_id: null })
+      .eq("id", studentId)
+      .eq("site_id", siteId);
 
-      if (updateError) {
-        // card_idの更新に失敗しても、student_cardsの削除は成功しているので警告のみ
-        console.warn(`students.card_idの更新に失敗しました: ${updateError.message}`);
-      }
+    if (updateError) {
+      return NextResponse.json(
+        { ok: false, error: `students.card_idの更新に失敗しました: ${updateError.message}` },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({ ok: true });

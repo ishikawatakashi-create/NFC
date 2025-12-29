@@ -909,11 +909,7 @@ export default function StudentsPage() {
                         <TableCell>{getClassLabel(student.class)}</TableCell>
                         <TableCell>
                           {student.card_registered ? (
-                            <div className="flex items-center gap-2">
-                              <Badge variant={student.card_active ? "default" : "secondary"}>
-                                {student.card_active ? "登録済み" : "無効"}
-                              </Badge>
-                            </div>
+                            <Badge variant="default">登録済み</Badge>
                           ) : (
                             <Badge variant="outline">未登録</Badge>
                           )}

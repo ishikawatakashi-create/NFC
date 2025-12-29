@@ -136,12 +136,14 @@ export async function GET(req: Request) {
       isRegistered: false,
       isActive: false,
     };
-    // students.card_idが存在する場合も登録済みと判定（後方互換性のため）
+    // student_cardsにレコードがある場合、またはcard_idが存在する場合は登録済みと判定（後方互換性のため）
     const isCardRegistered = cardInfo.isRegistered || (student.card_id != null && student.card_id.trim() !== "");
+    // student_cardsにレコードがある場合はそのis_activeを使用、ない場合はcard_idがある場合は有効とみなす
+    const isCardActive = cardInfo.isRegistered ? cardInfo.isActive : (student.card_id != null && student.card_id.trim() !== "");
     return {
       ...student,
       card_registered: isCardRegistered,
-      card_active: cardInfo.isActive || isCardRegistered, // card_idがある場合は有効とみなす
+      card_active: isCardActive,
       card_token: cardInfo.token || null,
       card_token_id: cardInfo.cardTokenId || null,
     };
