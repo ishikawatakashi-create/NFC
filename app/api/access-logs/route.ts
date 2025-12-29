@@ -10,6 +10,8 @@ import {
 } from "@/lib/point-utils";
 import { getPointSettings } from "@/lib/point-settings-utils";
 import { sendLineNotificationToParents } from "@/lib/line-notification-utils";
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { getStudentAccessTime, isPastEndTime } from "@/lib/access-time-utils";
 
 function getSupabase() {
   return createClient(
@@ -395,6 +397,12 @@ export async function POST(req: Request) {
       }
     }
 
+    // 入退室処理が成功した後、非同期で自動退室チェックを実行
+    // レスポンス時間への影響を最小限にするため、awaitしない
+    checkAndProcessAutoExit(siteId).catch((error) => {
+      console.error("[AutoExit] Error in background auto-exit check:", error);
+    });
+
     return NextResponse.json({
       ok: true,
       log: {
@@ -411,6 +419,131 @@ export async function POST(req: Request) {
   } catch (e: any) {
     const errorMessage = e?.message || String(e) || "Unknown error";
     return NextResponse.json({ ok: false, error: errorMessage }, { status: 500 });
+  }
+}
+
+/**
+ * 自動退室チェックと処理（非同期実行）
+ * 入退室処理のたびに、開放時間終了時刻を過ぎた未退室ユーザーを自動的に退室させる
+ * Vercel無料プランでも動作するように、Cron設定なしで実装
+ */
+async function checkAndProcessAutoExit(siteId: string): Promise<void> {
+  try {
+    const supabase = getSupabaseAdmin();
+    const currentTime = new Date();
+
+    // 1. 在籍中で、最終イベントが「入室（entry）」の生徒を取得
+    const { data: studentsInBuilding, error: fetchError } = await supabase
+      .from("students")
+      .select(
+        "id, name, role, has_custom_access_time, access_start_time, access_end_time, last_event_type, last_event_timestamp"
+      )
+      .eq("site_id", siteId)
+      .eq("status", "active")
+      .eq("last_event_type", "entry");
+
+    if (fetchError) {
+      console.error(`[AutoExit] Failed to fetch students:`, fetchError);
+      return;
+    }
+
+    if (!studentsInBuilding || studentsInBuilding.length === 0) {
+      return;
+    }
+
+    // 2. 各生徒の開放時間を確認し、終了時刻を過ぎている場合は自動退室
+    for (const student of studentsInBuilding) {
+      const studentRole = (student.role || "student") as
+        | "student"
+        | "part_time"
+        | "full_time";
+
+      // 生徒の開放時間を取得（個別設定優先、属性設定フォールバック）
+      const accessTime = await getStudentAccessTime(
+        siteId,
+        studentRole,
+        student.has_custom_access_time || false,
+        student.access_start_time,
+        student.access_end_time
+      );
+
+      // 終了時刻を過ぎているかチェック
+      const isPast = isPastEndTime(accessTime.end_time, currentTime);
+
+      if (!isPast) {
+        // まだ開放時間内の場合はスキップ
+        continue;
+      }
+
+      console.log(`[AutoExit] Processing forced exit for ${student.name} (${student.id})`);
+
+      // 自動退室ログを作成（強制退室として記録）
+      const { data: logData, error: logError } = await supabase
+        .from("access_logs")
+        .insert([
+          {
+            site_id: siteId,
+            student_id: student.id,
+            event_type: "forced_exit",
+            card_id: null,
+            device_id: "auto-exit-system",
+            notification_status: "not_required",
+          },
+        ])
+        .select()
+        .single();
+
+      if (logError) {
+        console.error(
+          `[AutoExit] Failed to create log for ${student.name}:`,
+          logError
+        );
+        continue;
+      }
+
+      // 生徒の最終イベント情報を更新
+      const { error: updateError } = await supabase
+        .from("students")
+        .update({
+          last_event_type: "exit",
+          last_event_timestamp: currentTime.toISOString(),
+        })
+        .eq("id", student.id)
+        .eq("site_id", siteId);
+
+      if (updateError) {
+        console.warn(
+          `[AutoExit] Failed to update student last event for ${student.name}:`,
+          updateError
+        );
+      } else {
+        console.log(
+          `[AutoExit] Successfully processed forced exit for ${student.name} (${student.id})`
+        );
+      }
+
+      // LINE通知を送信（生徒の場合のみ）
+      if (studentRole === "student") {
+        try {
+          await sendLineNotificationToParents(
+            siteId,
+            student.id,
+            "forced_exit",
+            logData.id,
+            student.name
+          );
+        } catch (notificationError) {
+          // LINE通知のエラーはログに記録するが、自動退室処理自体は成功として扱う
+          console.error(
+            `[AutoExit] Error sending LINE notification for ${student.name}:`,
+            notificationError
+          );
+        }
+      }
+    }
+  } catch (error: any) {
+    const errorMessage = error?.message || String(error) || "Unknown error";
+    console.error("[AutoExit] Error in checkAndProcessAutoExit:", errorMessage);
   }
 }
 
