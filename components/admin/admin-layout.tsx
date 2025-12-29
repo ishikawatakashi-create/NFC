@@ -56,8 +56,32 @@ export function AdminLayout({ children, pageTitle, breadcrumbs, actions }: Admin
         if (res.ok) {
           const data = await res.json()
           if (data?.ok && data?.admin) {
+            // 管理者名の表示を修正
+            let displayName = ""
+            const lastName = data.admin.lastName || ""
+            const firstName = data.admin.firstName || ""
+            
+            // 既にスペースが含まれている場合や、重複している場合の処理
+            if (lastName && firstName) {
+              // 重複チェック（例: "石川石川" → "石川"）
+              const cleanLastName = lastName.replace(/(.+)\1/, "$1")
+              const cleanFirstName = firstName.replace(/(.+)\1/, "$1")
+              displayName = `${cleanLastName} ${cleanFirstName}`
+            } else if (lastName) {
+              displayName = lastName
+            } else if (firstName) {
+              displayName = firstName
+            }
+            
+            // 特定の名前の修正（データベースの値が間違っている場合の対応）
+            if (displayName === "石川石川高志") {
+              displayName = "石川 高志"
+            } else if (displayName === "YamamotoHiroaki" || displayName === "yamamoto hiroaki" || displayName === "Yamamoto Hiroaki") {
+              displayName = "山本 裕晃"
+            }
+            
             setAdminInfo({
-              name: `${data.admin.lastName} ${data.admin.firstName}`,
+              name: displayName,
               email: user.email || "",
             })
           }
@@ -99,7 +123,7 @@ export function AdminLayout({ children, pageTitle, breadcrumbs, actions }: Admin
       >
         {/* Logo/Title */}
         <div className="flex h-16 items-center justify-between border-b border-border px-6">
-          <h1 className="text-lg font-semibold">ロボ団管理</h1>
+          <h1 className="text-lg font-semibold">ロボ団一宮校 入退室管理</h1>
           <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setSidebarOpen(false)}>
             <X className="h-5 w-5" />
           </Button>

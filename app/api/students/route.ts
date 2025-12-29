@@ -156,7 +156,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { name, grade, class: studentClass, role } = body as { name: string; grade?: string; class?: string; role?: string };
+    const { name, grade, class: studentClass, role, card_id } = body as { name: string; grade?: string; class?: string; role?: string; card_id?: string };
 
     const siteId = process.env.SITE_ID;
 
@@ -171,6 +171,34 @@ export async function POST(req: Request) {
     }
 
     const supabase = getSupabase();
+
+    // カードIDが指定されている場合、重複チェック
+    if (card_id && card_id.trim() !== "") {
+      const normalizedCardId = card_id.trim().toLowerCase();
+      
+      // 同じcard_idが他の生徒に登録されていないか確認
+      const { data: existingStudent, error: checkError } = await supabase
+        .from("students")
+        .select("id, name")
+        .eq("card_id", normalizedCardId)
+        .eq("site_id", siteId)
+        .single();
+      
+      if (checkError && checkError.code !== "PGRST116") { // PGRST116は「結果が見つからない」エラー（正常）
+        const errorMessage = checkError.message || String(checkError);
+        return NextResponse.json({ ok: false, error: errorMessage }, { status: 500 });
+      }
+      
+      if (existingStudent) {
+        return NextResponse.json(
+          { 
+            ok: false, 
+            error: `このカードは「${existingStudent.name}」にて登録済みのため登録できません` 
+          },
+          { status: 400 }
+        );
+      }
+    }
 
     // 属性に紐づいた開放時間を取得
     const userRole = (role || "student") as "student" | "part_time" | "full_time";
@@ -187,6 +215,11 @@ export async function POST(req: Request) {
 
     if (studentClass) {
       insertData.class = studentClass;
+    }
+
+    // card_idが指定されている場合は追加
+    if (card_id && card_id.trim() !== "") {
+      insertData.card_id = card_id.trim().toLowerCase();
     }
 
     // 属性に紐づいた開放時間を個別設定カラムに設定

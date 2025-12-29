@@ -925,7 +925,7 @@ export default function StudentsPage() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="gap-2"
+                                  className="gap-2 cursor-pointer"
                                   onClick={(e) => {
                                     e.stopPropagation()
                                     handleRegisterCard(student)
@@ -937,7 +937,7 @@ export default function StudentsPage() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  className="gap-2 text-destructive hover:text-destructive"
+                                  className="gap-2 text-destructive hover:text-destructive cursor-pointer"
                                   onClick={(e) => {
                                     e.stopPropagation()
                                     handleDeleteCard(student)
@@ -951,7 +951,7 @@ export default function StudentsPage() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="gap-2"
+                                className="gap-2 cursor-pointer"
                                 onClick={(e) => {
                                   e.stopPropagation()
                                   handleRegisterCard(student)
@@ -964,7 +964,7 @@ export default function StudentsPage() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="gap-2"
+                              className="gap-2 cursor-pointer"
                               onClick={(e) => {
                                 e.stopPropagation()
                                 handleEditStudent(student)
@@ -976,7 +976,7 @@ export default function StudentsPage() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="gap-2"
+                              className="gap-2 cursor-pointer"
                               onClick={(e) => {
                                 e.stopPropagation()
                                 handleRowClick(student.id)
@@ -988,7 +988,7 @@ export default function StudentsPage() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="gap-2 text-destructive hover:text-destructive"
+                              className="gap-2 text-destructive hover:text-destructive cursor-pointer"
                               onClick={(e) => {
                                 e.stopPropagation()
                                 handleDeleteStudent(student)

@@ -153,7 +153,37 @@ export async function PATCH(
     
     // cardId と card_id の両方に対応
     const cardIdValue = cardId !== undefined ? cardId : card_id;
-    if (cardIdValue !== undefined) updateData.card_id = cardIdValue;
+    if (cardIdValue !== undefined) {
+      // カードIDが空でない場合、重複チェック
+      if (cardIdValue && cardIdValue.trim() !== "") {
+        const normalizedCardId = cardIdValue.trim().toLowerCase();
+        
+        // 同じcard_idが他の生徒に登録されていないか確認
+        const { data: existingStudent, error: checkError } = await supabase
+          .from("students")
+          .select("id, name")
+          .eq("card_id", normalizedCardId)
+          .eq("site_id", siteId)
+          .neq("id", id) // 現在の生徒以外
+          .single();
+        
+        if (checkError && checkError.code !== "PGRST116") { // PGRST116は「結果が見つからない」エラー（正常）
+          const errorMessage = checkError.message || String(checkError);
+          return NextResponse.json({ ok: false, error: errorMessage }, { status: 500 });
+        }
+        
+        if (existingStudent) {
+          return NextResponse.json(
+            { 
+              ok: false, 
+              error: `このカードは「${existingStudent.name}」にて登録済みのため登録できません` 
+            },
+            { status: 400 }
+          );
+        }
+      }
+      updateData.card_id = cardIdValue;
+    }
 
     if (access_start_time !== undefined) updateData.access_start_time = access_start_time;
     if (access_end_time !== undefined) updateData.access_end_time = access_end_time;
@@ -327,6 +357,34 @@ export async function PUT(
 
     // card_idが指定されている場合は更新
     if (card_id !== undefined) {
+      // カードIDが空でない場合、重複チェック
+      if (card_id && card_id.trim() !== "") {
+        const normalizedCardId = card_id.trim().toLowerCase();
+        
+        // 同じcard_idが他の生徒に登録されていないか確認
+        const { data: existingStudent, error: checkError } = await supabase
+          .from("students")
+          .select("id, name")
+          .eq("card_id", normalizedCardId)
+          .eq("site_id", siteId)
+          .neq("id", id) // 現在の生徒以外
+          .single();
+        
+        if (checkError && checkError.code !== "PGRST116") { // PGRST116は「結果が見つからない」エラー（正常）
+          const errorMessage = checkError.message || String(checkError);
+          return NextResponse.json({ ok: false, error: errorMessage }, { status: 500 });
+        }
+        
+        if (existingStudent) {
+          return NextResponse.json(
+            { 
+              ok: false, 
+              error: `このカードは「${existingStudent.name}」にて登録済みのため登録できません` 
+            },
+            { status: 400 }
+          );
+        }
+      }
       updateData.card_id = card_id;
     }
 

@@ -121,8 +121,8 @@ export default function QuickLinksPage() {
                             {item.description}
                           </p>
                           <div className="flex flex-wrap gap-2">
-                            <Link href={item.path}>
-                              <Button size="sm" className="gap-2">
+                            <Link href={item.path} target="_blank" rel="noopener noreferrer">
+                              <Button size="sm" className="gap-2 cursor-pointer">
                                 <ExternalLink className="w-4 h-4" />
                                 開く
                               </Button>
