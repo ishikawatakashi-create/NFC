@@ -5,6 +5,8 @@ import { redirect } from "next/navigation";
  * トップページ
  * 認証状態に応じて適切なページにリダイレクト
  */
+export const dynamic = 'force-dynamic';
+
 export default async function HomePage() {
   const admin = await getCurrentAdmin();
 
