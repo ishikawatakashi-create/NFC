@@ -89,6 +89,18 @@ export async function DELETE(req: Request) {
           { status: 500 }
         );
       }
+
+      // studentsテーブルのcard_idもnullに更新（後方互換性のため）
+      const { error: updateError } = await supabase
+        .from("students")
+        .update({ card_id: null })
+        .eq("id", studentId)
+        .eq("site_id", siteId);
+
+      if (updateError) {
+        // card_idの更新に失敗しても、student_cardsの削除は成功しているので警告のみ
+        console.warn(`students.card_idの更新に失敗しました: ${updateError.message}`);
+      }
     }
 
     return NextResponse.json({ ok: true });
