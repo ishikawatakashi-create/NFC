@@ -121,7 +121,7 @@ dist
 
 # Gatsby files
 .cache/
-public
+# public - Next.jsではpublicフォルダをGitに含める必要があるため、コメントアウト
 
 # Storybook build outputs
 .out
