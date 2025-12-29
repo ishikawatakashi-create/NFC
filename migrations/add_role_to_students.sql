@@ -19,3 +19,4 @@ COMMENT ON COLUMN students.role IS '属性（student: 生徒, part_time: アル�
 
 
 
+

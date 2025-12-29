@@ -10,3 +10,4 @@ COMMENT ON COLUMN students.class IS 'コース（kindergarten, beginner, challen
 
 
 
+

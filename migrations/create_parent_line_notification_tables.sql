@@ -116,3 +116,4 @@ COMMENT ON COLUMN line_notification_logs.message_sent IS '送信したメッセ�
 COMMENT ON COLUMN line_notification_logs.status IS '送信ステータス（success: 成功, failed: 失敗, pending: 送信待ち）';
 COMMENT ON COLUMN line_notification_logs.error_message IS 'エラーメッセージ（失敗時）';
 
+

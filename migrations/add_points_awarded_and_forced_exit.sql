@@ -25,3 +25,4 @@ CHECK (event_type IN ('entry', 'exit', 'no_log', 'forced_exit'));
 -- コメントを更新
 COMMENT ON COLUMN access_logs.event_type IS 'イベント種別（entry: 入室, exit: 退室, no_log: ログ無し, forced_exit: 強制退室）';
 
+

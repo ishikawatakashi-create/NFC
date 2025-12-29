@@ -27,3 +27,4 @@ COMMENT ON COLUMN card_tokens.note IS '備考（任意）';
 
 
 
+

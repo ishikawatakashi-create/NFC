@@ -93,3 +93,4 @@ https://oppositionary-proletarianly-kena.ngrok-free.dev/kiosk/entry
 - カードを端末の背面中央にゆっくりタッチ
 - カードを数秒間密着させる
 
+

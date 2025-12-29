@@ -22,3 +22,4 @@ DROP TABLE IF EXISTS calculated_points;
 -- 確認用クエリ（実行後、削除してもOK）
 -- SELECT id, name, current_points FROM students ORDER BY current_points DESC LIMIT 10;
 
+

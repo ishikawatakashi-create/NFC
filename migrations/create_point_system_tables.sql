@@ -92,3 +92,4 @@ COMMENT ON TABLE class_based_bonus_thresholds IS 'クラスごとのボーナス
 COMMENT ON COLUMN class_based_bonus_thresholds.class IS 'クラス（kindergarten, beginner, challenger, creator, innovator）';
 COMMENT ON COLUMN class_based_bonus_thresholds.bonus_threshold IS 'ボーナスポイントが付与される入室回数（同月内）';
 
+

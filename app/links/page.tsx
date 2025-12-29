@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ExternalLink, LogIn, LogOut, Users, Clock, Settings, TestTube, Home } from "lucide-react"
+import { ExternalLink, LogIn, LogOut, Users, Clock, Settings, TestTube, Home, Coins, UserPlus } from "lucide-react"
 import Link from "next/link"
 
 export default function QuickLinksPage() {
@@ -32,6 +32,20 @@ export default function QuickLinksPage() {
       category: "👨‍💼 管理画面",
       items: [
         {
+          name: "管理者ログイン",
+          path: "/admin/login",
+          icon: LogIn,
+          color: "bg-indigo-50 hover:bg-indigo-100",
+          description: "管理者アカウントでログイン"
+        },
+        {
+          name: "管理者登録",
+          path: "/admin/register",
+          icon: UserPlus,
+          color: "bg-indigo-50 hover:bg-indigo-100",
+          description: "初回管理者アカウントの作成"
+        },
+        {
           name: "生徒管理",
           path: "/admin/students",
           icon: Users,
@@ -46,11 +60,30 @@ export default function QuickLinksPage() {
           description: "入退室の履歴確認、検索、フィルタリング"
         },
         {
+          name: "ポイント管理",
+          path: "/admin/points",
+          icon: Coins,
+          color: "bg-yellow-50 hover:bg-yellow-100",
+          description: "ポイント設定、ランキング、一括付与、ボーナス設定"
+        },
+        {
           name: "設定",
           path: "/admin/settings",
           icon: Settings,
           color: "bg-gray-50 hover:bg-gray-100",
           description: "システム設定、開放時間設定"
+        },
+      ]
+    },
+    {
+      category: "👥 公開ページ",
+      items: [
+        {
+          name: "ポイント一覧",
+          path: "/students",
+          icon: Coins,
+          color: "bg-cyan-50 hover:bg-cyan-100",
+          description: "生徒向けポイント一覧ページ（公開）"
         },
       ]
     },
@@ -70,6 +103,13 @@ export default function QuickLinksPage() {
           icon: Settings,
           color: "bg-yellow-50 hover:bg-yellow-100",
           description: "環境変数が正しく設定されているか確認"
+        },
+        {
+          name: "テストページ",
+          path: "/test",
+          icon: TestTube,
+          color: "bg-pink-50 hover:bg-pink-100",
+          description: "Supabase接続テスト、開発用デバッグページ"
         },
       ]
     },

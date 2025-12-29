@@ -73,3 +73,4 @@ ORDER BY a.created_at;
 --   first_name = '高志'
 -- WHERE id = '管理者のUUID';
 
+

@@ -22,3 +22,4 @@ COMMENT ON COLUMN student_cards.created_at IS '紐付け作成日時';
 
 
 
+

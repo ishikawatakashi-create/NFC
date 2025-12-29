@@ -182,3 +182,4 @@ WHERE
 - マイグレーションファイル: `migrations/fix_admin_names.sql`
 - テーブル定義: `migrations/create_admins_table.sql`
 
+

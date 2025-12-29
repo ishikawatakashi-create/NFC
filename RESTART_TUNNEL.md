@@ -103,3 +103,4 @@ cd "C:\Users\snksg\Desktop\NFCカード開発\NFC"
 # 3. 表示されたURLをAndroid端末で使用
 ```
 
+

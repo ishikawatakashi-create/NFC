@@ -369,3 +369,4 @@ val supabase = createSupabaseClient(
 **最終判断:**
 現在のWebアプリで十分機能している場合は、**Androidネイティブ化は必須ではない**。ただし、FeliCaカード対応やオフライン機能が必要な場合は、**React Native**からの段階的移行を推奨する。
 
+

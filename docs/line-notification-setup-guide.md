@@ -136,3 +136,4 @@ POST /api/parents/{parent-id}/line-account
 - 通知テンプレートのカスタマイズ機能
 - 通知送信履歴の管理画面表示
 
+

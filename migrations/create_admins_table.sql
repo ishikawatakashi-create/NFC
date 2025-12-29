@@ -27,3 +27,4 @@ COMMENT ON COLUMN admins.employment_type IS '雇用形態（part_time: アルバ
 
 
 
+
