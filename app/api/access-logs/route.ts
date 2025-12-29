@@ -106,6 +106,7 @@ export async function GET(req: Request) {
 // 入退室ログ作成
 export async function POST(req: Request) {
   try {
+    console.log(`[AccessLogs] POST request received`);
     const body = await req.json();
     const { studentId, cardId, deviceId, eventType, notificationStatus } = body as {
       studentId: string;
@@ -114,6 +115,8 @@ export async function POST(req: Request) {
       eventType: "entry" | "exit" | "no_log";
       notificationStatus?: "sent" | "not_required";
     };
+
+    console.log(`[AccessLogs] Request data: studentId=${studentId}, eventType=${eventType}`);
 
     const siteId = process.env.SITE_ID;
 
@@ -144,12 +147,16 @@ export async function POST(req: Request) {
 
     if (studentError) {
       const errorMessage = studentError.message || String(studentError);
+      console.error(`[AccessLogs] Failed to fetch student ${studentId}:`, errorMessage);
       return NextResponse.json({ ok: false, error: errorMessage }, { status: 500 });
     }
 
     if (!studentData) {
+      console.error(`[AccessLogs] Student not found: ${studentId}`);
       return NextResponse.json({ ok: false, error: "生徒が見つかりません" }, { status: 404 });
     }
+
+    console.log(`[AccessLogs] Student found: ${studentData.name}, role=${studentData.role}, eventType=${eventType}`);
 
     // 不正な操作をチェック（ログに残さずエラーを返す）
     const currentEventType = studentData.last_event_type;
@@ -177,6 +184,7 @@ export async function POST(req: Request) {
     }
 
     // ログを作成
+    console.log(`[AccessLogs] Creating log for student ${studentId}, eventType=${eventType}`);
     const { data: logData, error: logError } = await supabase
       .from("access_logs")
       .insert([
@@ -194,8 +202,11 @@ export async function POST(req: Request) {
 
     if (logError) {
       const errorMessage = logError.message || String(logError);
+      console.error(`[AccessLogs] Failed to create log:`, errorMessage);
       return NextResponse.json({ ok: false, error: errorMessage }, { status: 500 });
     }
+
+    console.log(`[AccessLogs] Log created successfully: ${logData.id}`);
 
     // 生徒の最終イベント情報を更新
     const { error: updateError } = await supabase
@@ -213,8 +224,10 @@ export async function POST(req: Request) {
     }
 
     // 入室時かつ生徒ユーザーの場合、ポイントを付与
+    console.log(`[AccessLogs] Checking points eligibility: eventType=${eventType}, role=${studentData.role}, studentId=${studentId}`);
     const pointsAwarded: { entry?: number; bonus?: number } = {};
     if (eventType === "entry" && studentData.role === "student") {
+      console.log(`[AccessLogs] ✅ Student is eligible for points, starting point award process for ${studentData.name} (${studentId})`);
       try {
         // 1. 入室ポイント（1日1回のみ）
         const hasReceivedToday = await hasReceivedPointsToday(siteId, studentId);
@@ -282,9 +295,9 @@ export async function POST(req: Request) {
       }
     } else {
       if (eventType !== "entry") {
-        console.log(`[Points] Event type is ${eventType}, not entry. Skipping points.`);
+        console.log(`[Points] ❌ Event type is ${eventType}, not entry. Skipping points.`);
       } else if (studentData.role !== "student") {
-        console.log(`[Points] Student role is ${studentData.role}, not student. Skipping points.`);
+        console.log(`[Points] ❌ Student role is "${studentData.role}", not "student". Skipping points. (Student: ${studentData.name}, ID: ${studentId})`);
       }
     }
 

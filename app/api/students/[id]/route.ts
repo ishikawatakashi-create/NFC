@@ -31,10 +31,10 @@ export async function GET(
 
     const supabase = getSupabase();
 
-    // classカラム、card_id、role、最終イベント情報、個別開放時間を含めて取得を試みる
+    // classカラム、card_id、role、最終イベント情報、個別開放時間、ポイント情報を含めて取得を試みる
     let { data, error } = await supabase
       .from("students")
-      .select("id,name,grade,status,class,role,card_id,last_event_type,last_event_timestamp,access_start_time,access_end_time,has_custom_access_time,created_at")
+      .select("id,name,grade,status,class,role,card_id,last_event_type,last_event_timestamp,access_start_time,access_end_time,has_custom_access_time,current_points,bonus_threshold,has_custom_bonus_threshold,created_at")
       .eq("id", id)
       .eq("site_id", siteId)
       .single();
@@ -44,7 +44,8 @@ export async function GET(
                   error.message?.includes("column students.role does not exist") ||
                   error.message?.includes("column students.card_id does not exist") ||
                   error.message?.includes("column students.last_event_type does not exist") ||
-                  error.message?.includes("column students.access_start_time does not exist"))) {
+                  error.message?.includes("column students.access_start_time does not exist") ||
+                  error.message?.includes("column students.current_points does not exist"))) {
       const { data: dataFallback, error: errorFallback } = await supabase
         .from("students")
         .select("id,name,grade,status,created_at")
@@ -67,7 +68,10 @@ export async function GET(
         last_event_timestamp: null,
         access_start_time: null,
         access_end_time: null,
-        has_custom_access_time: false
+        has_custom_access_time: false,
+        current_points: 0,
+        bonus_threshold: null,
+        has_custom_bonus_threshold: false
       } : null;
       error = null;
     }
@@ -227,7 +231,7 @@ export async function PATCH(
       .update(updateData)
       .eq("id", id)
       .eq("site_id", siteId)
-      .select("id,name,grade,status,class,role,card_id,last_event_type,last_event_timestamp,access_start_time,access_end_time,has_custom_access_time,created_at")
+      .select("id,name,grade,status,class,role,card_id,last_event_type,last_event_timestamp,access_start_time,access_end_time,has_custom_access_time,current_points,bonus_threshold,has_custom_bonus_threshold,created_at")
       .single();
 
     // カラムが存在しない場合のフォールバック
@@ -441,7 +445,7 @@ export async function PUT(
       .update(updateData)
       .eq("id", id)
       .eq("site_id", siteId)
-      .select("id,name,grade,status,class,role,card_id,last_event_type,last_event_timestamp,access_start_time,access_end_time,has_custom_access_time,created_at")
+      .select("id,name,grade,status,class,role,card_id,last_event_type,last_event_timestamp,access_start_time,access_end_time,has_custom_access_time,current_points,bonus_threshold,has_custom_bonus_threshold,created_at")
       .single();
 
     // カラムが存在しない場合は、存在するカラムのみで再試行

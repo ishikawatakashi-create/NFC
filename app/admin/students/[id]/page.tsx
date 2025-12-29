@@ -126,6 +126,9 @@ export default function StudentDetailPage({
           access_start_time?: string | null
           access_end_time?: string | null
           has_custom_access_time?: boolean
+          current_points?: number
+          bonus_threshold?: number | null
+          has_custom_bonus_threshold?: boolean
           created_at?: string | null
         }
 

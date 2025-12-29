@@ -76,21 +76,25 @@ export async function hasReceivedPointsToday(
   today.setHours(0, 0, 0, 0);
   const todayStart = today.toISOString();
 
+  // ポイントが実際に付与されたトランザクション（points > 0）をチェック
   const { data, error } = await supabase
     .from("point_transactions")
-    .select("id")
+    .select("id, points")
     .eq("site_id", siteId)
     .eq("student_id", studentId)
     .eq("transaction_type", "entry")
+    .gt("points", 0) // ポイントが0より大きいもののみ
     .gte("created_at", todayStart)
     .limit(1);
 
   if (error) {
-    console.error("Failed to check today's points:", error);
+    console.error(`[Points] Failed to check today's points for student ${studentId}:`, error);
     return false;
   }
 
-  return (data?.length || 0) > 0;
+  const hasReceived = (data?.length || 0) > 0;
+  console.log(`[Points] Student ${studentId}: hasReceivedPointsToday=${hasReceived}`);
+  return hasReceived;
 }
 
 /**
