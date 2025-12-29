@@ -8,11 +8,16 @@ import { redirect } from "next/navigation";
 export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
-  const admin = await getCurrentAdmin();
+  try {
+    const admin = await getCurrentAdmin();
 
-  // 認証済みの場合は管理画面の生徒管理ページへ
-  if (admin) {
-    redirect("/admin/students");
+    // 認証済みの場合は管理画面の生徒管理ページへ
+    if (admin) {
+      redirect("/admin/students");
+    }
+  } catch (error) {
+    // エラーが発生した場合はログインページへリダイレクト
+    console.error("Error checking admin authentication:", error);
   }
 
   // 未認証の場合はログインページへ
