@@ -22,27 +22,33 @@ export function ClassBonusThresholdDialog({
 }: ClassBonusThresholdDialogProps) {
   const { toast } = useToast()
   const [bonusThreshold, setBonusThreshold] = useState("10")
+  const [bonusPoints, setBonusPoints] = useState("3")
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
 
   // データを読み込む
   useEffect(() => {
     if (open) {
-      loadBonusThreshold()
+      loadBonusSettings()
     }
   }, [open, studentClass])
 
-  async function loadBonusThreshold() {
+  async function loadBonusSettings() {
     setIsLoading(true)
     try {
       const res = await fetch("/api/bonus-thresholds/class", { cache: "no-store" })
       const data = await res.json()
 
-      if (res.ok && data?.ok && data?.thresholds?.[studentClass]) {
-        setBonusThreshold(String(data.thresholds[studentClass]))
+      if (res.ok && data?.ok) {
+        if (data?.thresholds?.[studentClass]) {
+          setBonusThreshold(String(data.thresholds[studentClass]))
+        }
+        if (data?.bonusPoints?.[studentClass]) {
+          setBonusPoints(String(data.bonusPoints[studentClass]))
+        }
       }
     } catch (e: any) {
-      console.error("Failed to load bonus threshold:", e)
+      console.error("Failed to load bonus settings:", e)
     } finally {
       setIsLoading(false)
     }
@@ -56,12 +62,18 @@ export function ClassBonusThresholdDialog({
         throw new Error("ボーナス閾値は1以上の数値である必要があります")
       }
 
+      const points = parseInt(bonusPoints, 10)
+      if (isNaN(points) || points <= 0) {
+        throw new Error("ボーナスポイント数は1以上の数値である必要があります")
+      }
+
       const res = await fetch("/api/bonus-thresholds/class", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           class: studentClass,
           bonusThreshold: threshold,
+          bonusPoints: points,
         }),
       })
 
@@ -74,7 +86,7 @@ export function ClassBonusThresholdDialog({
 
       toast({
         title: "保存しました",
-        description: `${classLabel}のボーナス閾値を保存しました。`,
+        description: `${classLabel}のボーナス設定を保存しました。`,
       })
 
       onOpenChange(false)
@@ -93,7 +105,7 @@ export function ClassBonusThresholdDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{classLabel}のボーナス閾値設定</DialogTitle>
+          <DialogTitle>{classLabel}のボーナス設定</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-2">
@@ -108,7 +120,22 @@ export function ClassBonusThresholdDialog({
               className="max-w-xs"
             />
             <p className="text-sm text-muted-foreground">
-              同月内でこの回数入室すると、ボーナスポイント3点が付与されます
+              同月内でこの回数入室すると、ボーナスポイントが付与されます
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor={`bonus-points-${studentClass}`}>ボーナスポイント数</Label>
+            <Input
+              id={`bonus-points-${studentClass}`}
+              type="number"
+              min="1"
+              value={bonusPoints}
+              onChange={(e) => setBonusPoints(e.target.value)}
+              disabled={isLoading || isSaving}
+              className="max-w-xs"
+            />
+            <p className="text-sm text-muted-foreground">
+              ボーナス閾値達成時に付与されるポイント数
             </p>
           </div>
         </div>

@@ -44,20 +44,38 @@ export async function getStudentBonusThreshold(
     }
   }
 
-  // 属性設定を確認
-  const { data: roleThreshold } = await supabase
-    .from("role_based_bonus_thresholds")
-    .select("bonus_threshold")
-    .eq("site_id", siteId)
-    .eq("role", studentRole)
-    .single();
-
-  if (roleThreshold && roleThreshold.bonus_threshold > 0) {
-    return roleThreshold.bonus_threshold;
-  }
-
   // デフォルト値（設定されていない場合は10回）
   return 10;
+}
+
+/**
+ * 生徒のボーナスポイント数を取得する（クラス設定を優先、デフォルトは3点）
+ * @param siteId サイトID
+ * @param studentClass 生徒のクラス
+ * @returns ボーナスポイント数
+ */
+export async function getStudentBonusPoints(
+  siteId: string,
+  studentClass: string | null | undefined
+): Promise<number> {
+  const supabase = getSupabase();
+
+  // クラス設定を確認
+  if (studentClass) {
+    const { data: classSettings } = await supabase
+      .from("class_based_bonus_thresholds")
+      .select("bonus_points")
+      .eq("site_id", siteId)
+      .eq("class", studentClass)
+      .single();
+
+    if (classSettings && classSettings.bonus_points > 0) {
+      return classSettings.bonus_points;
+    }
+  }
+
+  // デフォルト値（設定されていない場合は3点）
+  return 3;
 }
 
 /**

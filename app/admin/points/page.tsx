@@ -1,0 +1,979 @@
+"use client"
+
+import { AdminLayout } from "@/components/admin/admin-layout"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { Switch } from "@/components/ui/switch"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { useToast } from "@/hooks/use-toast"
+import { AlertTriangle, Save, Coins, Users } from "lucide-react"
+import { useState, useEffect } from "react"
+import { ClassBonusThresholdDialog } from "@/components/admin/class-bonus-threshold-dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts"
+
+interface Student {
+  id: string
+  name: string
+  current_points: number
+  monthly_points?: number
+  role?: string
+  class?: string
+}
+
+interface PointHistory {
+  date: string
+  total: number
+  entry: number
+  bonus: number
+  consumption: number
+  admin_add: number
+}
+
+export default function PointsPage() {
+  const { toast } = useToast()
+
+  // ボーナス閾値設定ダイアログの状態（クラス別）
+  const [kindergartenBonusDialogOpen, setKindergartenBonusDialogOpen] = useState(false)
+  const [beginnerBonusDialogOpen, setBeginnerBonusDialogOpen] = useState(false)
+  const [challengerBonusDialogOpen, setChallengerBonusDialogOpen] = useState(false)
+  const [creatorBonusDialogOpen, setCreatorBonusDialogOpen] = useState(false)
+  const [innovatorBonusDialogOpen, setInnovatorBonusDialogOpen] = useState(false)
+
+  // ポイント設定
+  const [entryPoints, setEntryPoints] = useState("1")
+  const [dailyLimit, setDailyLimit] = useState(true)
+
+  // 生徒一覧とポイント推移
+  const [students, setStudents] = useState<Student[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [pointHistory, setPointHistory] = useState<PointHistory[]>([])
+  const [selectedPeriod, setSelectedPeriod] = useState<"week" | "month" | "year">("month")
+  const [rankingType, setRankingType] = useState<"total" | "monthly">("total")
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
+  const [studentHistoryDialogOpen, setStudentHistoryDialogOpen] = useState(false)
+  const [studentPointTransactions, setStudentPointTransactions] = useState<any[]>([])
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false)
+
+  // 一括ポイント付与
+  const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(new Set())
+  const [bulkAddDialogOpen, setBulkAddDialogOpen] = useState(false)
+  const [bulkAddPoints, setBulkAddPoints] = useState<Record<string, string>>({})
+  const [bulkAddDescription, setBulkAddDescription] = useState("")
+  const [isBulkAdding, setIsBulkAdding] = useState(false)
+
+  useEffect(() => {
+    loadPointSettings()
+    loadStudents()
+    loadPointHistory()
+  }, [selectedPeriod, rankingType])
+
+  // ダイアログが開かれたときに選択した生徒のポイント数を初期化
+  useEffect(() => {
+    if (bulkAddDialogOpen) {
+      const initialPoints: Record<string, string> = {}
+      selectedStudentIds.forEach((studentId) => {
+        initialPoints[studentId] = ""
+      })
+      setBulkAddPoints(initialPoints)
+    }
+  }, [bulkAddDialogOpen, selectedStudentIds])
+
+  async function loadPointSettings() {
+    try {
+      const res = await fetch("/api/point-settings", { cache: "no-store" })
+      const data = await res.json()
+
+      if (res.ok && data?.ok && data?.settings) {
+        setEntryPoints(String(data.settings.entry_points ?? 1))
+        setDailyLimit(data.settings.daily_limit ?? true)
+      }
+    } catch (e: any) {
+      console.error("Failed to load point settings:", e)
+    }
+  }
+
+  async function loadStudents() {
+    setIsLoading(true)
+    try {
+      const res = await fetch("/api/students", { cache: "no-store" })
+      const data = await res.json()
+
+      if (res.ok && data?.ok && data?.students) {
+        let studentsWithPoints = data.students
+          .filter((s: any) => s.role === "student")
+          .map((s: any) => ({
+            id: String(s.id),
+            name: s.name,
+            current_points: (s as any).current_points ?? 0,
+            role: s.role,
+            class: s.class,
+          }))
+
+        // 月内ランキングの場合、今月のポイントを計算
+        if (rankingType === "monthly") {
+          const now = new Date()
+          const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+          const monthStartISO = monthStart.toISOString()
+
+          // 各生徒の今月のポイントを計算
+          const studentsWithMonthlyPoints = await Promise.all(
+            studentsWithPoints.map(async (student) => {
+              try {
+                const historyRes = await fetch(
+                  `/api/points/history?studentId=${encodeURIComponent(student.id)}&startDate=${monthStartISO}&type=all`,
+                  { cache: "no-store" }
+                )
+                const historyData = await historyRes.json()
+
+                if (historyRes.ok && historyData?.ok && historyData?.transactions) {
+                  const monthlyPoints = historyData.transactions.reduce(
+                    (sum: number, t: any) => sum + t.points,
+                    0
+                  )
+                  return { ...student, monthly_points: monthlyPoints }
+                }
+              } catch (e) {
+                console.error(`Failed to load monthly points for ${student.id}:`, e)
+              }
+              return { ...student, monthly_points: 0 }
+            })
+          )
+
+          studentsWithPoints = studentsWithMonthlyPoints.sort(
+            (a: any, b: any) => (b.monthly_points || 0) - (a.monthly_points || 0)
+          )
+        } else {
+          // 総合ランキング
+          studentsWithPoints = studentsWithPoints.sort(
+            (a: Student, b: Student) => b.current_points - a.current_points
+          )
+        }
+
+        setStudents(studentsWithPoints)
+      }
+    } catch (e: any) {
+      console.error("Failed to load students:", e)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  async function loadStudentHistory(studentId: string) {
+    setIsLoadingHistory(true)
+    try {
+      const res = await fetch(`/api/points/history?studentId=${encodeURIComponent(studentId)}`, {
+        cache: "no-store",
+      })
+      const data = await res.json()
+
+      if (res.ok && data?.ok && data?.transactions) {
+        setStudentPointTransactions(data.transactions)
+      }
+    } catch (e: any) {
+      console.error("Failed to load student history:", e)
+    } finally {
+      setIsLoadingHistory(false)
+    }
+  }
+
+  function handleStudentClick(student: Student) {
+    setSelectedStudent(student)
+    setStudentHistoryDialogOpen(true)
+    loadStudentHistory(student.id)
+  }
+
+  function handleSelectStudent(studentId: string, checked: boolean) {
+    const newSelected = new Set(selectedStudentIds)
+    if (checked) {
+      newSelected.add(studentId)
+    } else {
+      newSelected.delete(studentId)
+    }
+    setSelectedStudentIds(newSelected)
+  }
+
+  function handleSelectAll(checked: boolean) {
+    if (checked) {
+      setSelectedStudentIds(new Set(students.map((s) => s.id)))
+    } else {
+      setSelectedStudentIds(new Set())
+    }
+  }
+
+  function handleBulkPointsChange(studentId: string, value: string) {
+    setBulkAddPoints((prev) => ({
+      ...prev,
+      [studentId]: value,
+    }))
+  }
+
+  function handleSetAllPoints(points: string) {
+    const newPoints: Record<string, string> = {}
+    selectedStudentIds.forEach((studentId) => {
+      newPoints[studentId] = points
+    })
+    setBulkAddPoints(newPoints)
+  }
+
+  async function handleBulkAdd() {
+    if (selectedStudentIds.size === 0) {
+      toast({
+        title: "エラー",
+        description: "少なくとも1名の生徒を選択してください",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // 各生徒のポイント数を検証
+    const assignments: Array<{ studentId: string; points: number; description?: string }> = []
+    const errors: string[] = []
+
+    selectedStudentIds.forEach((studentId) => {
+      const pointsStr = bulkAddPoints[studentId] || ""
+      const points = parseInt(pointsStr, 10)
+
+      if (!pointsStr || isNaN(points) || points <= 0) {
+        const student = students.find((s) => s.id === studentId)
+        errors.push(`${student?.name || studentId}: ポイント数が無効です`)
+        return
+      }
+
+      assignments.push({
+        studentId,
+        points,
+        description: bulkAddDescription || undefined,
+      })
+    })
+
+    if (errors.length > 0) {
+      toast({
+        title: "エラー",
+        description: errors.join("\n"),
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (assignments.length === 0) {
+      toast({
+        title: "エラー",
+        description: "有効なポイント数が設定されていません",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsBulkAdding(true)
+    try {
+      const res = await fetch("/api/points/bulk-add", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          assignments,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.error || "一括ポイント付与に失敗しました")
+      }
+
+      toast({
+        title: "成功",
+        description: data.message || `${data.successCount}名にポイントを付与しました`,
+      })
+
+      // ダイアログを閉じて、データを再読み込み
+      setBulkAddDialogOpen(false)
+      setBulkAddPoints({})
+      setBulkAddDescription("")
+      setSelectedStudentIds(new Set())
+      await loadStudents()
+    } catch (e: any) {
+      toast({
+        title: "エラー",
+        description: e?.message || "一括ポイント付与に失敗しました",
+        variant: "destructive",
+      })
+    } finally {
+      setIsBulkAdding(false)
+    }
+  }
+
+  async function loadPointHistory() {
+    try {
+      const now = new Date()
+      let startDate: Date
+
+      switch (selectedPeriod) {
+        case "week":
+          startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+          break
+        case "month":
+          startDate = new Date(now.getFullYear(), now.getMonth(), 1)
+          break
+        case "year":
+          startDate = new Date(now.getFullYear(), 0, 1)
+          break
+      }
+
+      // 全生徒分の履歴を取得（studentIdを指定しない）
+      const res = await fetch(
+        `/api/points/history?startDate=${startDate.toISOString()}&endDate=${now.toISOString()}&type=all`,
+        { cache: "no-store" }
+      )
+      const data = await res.json()
+
+      if (res.ok && data?.ok && data?.transactions) {
+        // 日付ごとに集計
+        const historyMap = new Map<string, PointHistory>()
+
+        data.transactions.forEach((transaction: any) => {
+          const date = new Date(transaction.createdAt).toLocaleDateString("ja-JP", {
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+          })
+          if (!historyMap.has(date)) {
+            historyMap.set(date, {
+              date,
+              total: 0,
+              entry: 0,
+              bonus: 0,
+              consumption: 0,
+              admin_add: 0,
+            })
+          }
+
+          const dayData = historyMap.get(date)!
+          if (transaction.points > 0) {
+            dayData.total += transaction.points
+            if (transaction.transactionType === "entry") dayData.entry += transaction.points
+            else if (transaction.transactionType === "bonus") dayData.bonus += transaction.points
+            else if (transaction.transactionType === "admin_add") dayData.admin_add += transaction.points
+          } else {
+            dayData.consumption += Math.abs(transaction.points)
+          }
+        })
+
+        const history = Array.from(historyMap.values()).sort(
+          (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+        )
+        setPointHistory(history)
+      }
+    } catch (e: any) {
+      console.error("Failed to load point history:", e)
+    }
+  }
+
+  async function handleSave() {
+    try {
+      const points = parseInt(entryPoints, 10)
+      if (isNaN(points) || points < 0) {
+        toast({
+          title: "エラー",
+          description: "ポイント数は0以上の数値である必要があります",
+          variant: "destructive",
+        })
+        return
+      }
+
+      const res = await fetch("/api/point-settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          entryPoints: points,
+          dailyLimit: dailyLimit,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.error || "保存に失敗しました")
+      }
+
+      toast({
+        title: "設定を保存しました",
+        description: "ポイント設定の変更が正常に保存されました。",
+      })
+    } catch (e: any) {
+      toast({
+        title: "エラー",
+        description: e?.message || "保存に失敗しました",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const getClassLabel = (studentClass?: string) => {
+    if (!studentClass) return "-"
+    const classLabels: Record<string, string> = {
+      kindergarten: "キンダー",
+      beginner: "ビギナー",
+      challenger: "チャレンジャー",
+      creator: "クリエイター",
+      innovator: "イノベーター",
+    }
+    return classLabels[studentClass] || studentClass
+  }
+
+  const totalPoints = students.reduce((sum, s) => sum + s.current_points, 0)
+  const averagePoints = students.length > 0 ? Math.round(totalPoints / students.length) : 0
+
+  return (
+    <AdminLayout pageTitle="ポイント管理" breadcrumbs={[{ label: "ポイント管理" }]}>
+      <div className="mx-auto max-w-7xl space-y-6">
+        {/* 統計サマリー */}
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">総ポイント数</CardTitle>
+              <Coins className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{totalPoints.toLocaleString()}</div>
+              <p className="text-xs text-muted-foreground">全生徒の合計ポイント</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">平均ポイント</CardTitle>
+              <Coins className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{averagePoints.toLocaleString()}</div>
+              <p className="text-xs text-muted-foreground">生徒1人あたりの平均</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">対象生徒数</CardTitle>
+              <Coins className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{students.length}</div>
+              <p className="text-xs text-muted-foreground">ポイント対象の生徒数</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* ポイント推移グラフ */}
+        <Card>
+          <CardHeader>
+            <CardTitle>ポイント推移</CardTitle>
+            <CardDescription>期間別のポイント獲得・消費の推移を表示します</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="mb-4 flex gap-2">
+              <Button
+                variant={selectedPeriod === "week" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSelectedPeriod("week")}
+              >
+                週間
+              </Button>
+              <Button
+                variant={selectedPeriod === "month" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSelectedPeriod("month")}
+              >
+                月間
+              </Button>
+              <Button
+                variant={selectedPeriod === "year" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSelectedPeriod("year")}
+              >
+                年間
+              </Button>
+            </div>
+            {pointHistory.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={pointHistory}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Line type="monotone" dataKey="entry" stroke="#8884d8" name="入室" />
+                  <Line type="monotone" dataKey="bonus" stroke="#82ca9d" name="ボーナス" />
+                  <Line type="monotone" dataKey="admin_add" stroke="#ffc658" name="管理追加" />
+                  <Line type="monotone" dataKey="consumption" stroke="#ff7300" name="消費" />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex h-[300px] items-center justify-center text-muted-foreground">
+                データがありません
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* ポイントランキング */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>ポイントランキング</CardTitle>
+                <CardDescription>生徒のポイント数ランキング</CardDescription>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant={rankingType === "total" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setRankingType("total")}
+                >
+                  総合
+                </Button>
+                <Button
+                  variant={rankingType === "monthly" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setRankingType("monthly")}
+                >
+                  月内
+                </Button>
+                {selectedStudentIds.size > 0 && (
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => setBulkAddDialogOpen(true)}
+                    className="gap-2"
+                  >
+                    <Users className="h-4 w-4" />
+                    一括付与 ({selectedStudentIds.size}名)
+                  </Button>
+                )}
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="text-center py-8 text-muted-foreground">読み込み中...</div>
+            ) : students.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">データがありません</div>
+            ) : (
+              <div className="space-y-4">
+                {/* トップ3のビジュアル表示 */}
+                <div className="grid gap-4 md:grid-cols-3">
+                  {students.slice(0, 3).map((student, index) => {
+                    const points = rankingType === "monthly" ? (student as any).monthly_points || 0 : student.current_points
+                    return (
+                      <Card key={student.id} className={index === 0 ? "border-primary" : ""}>
+                        <CardContent className="pt-6">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <Badge variant={index === 0 ? "default" : "secondary"}>
+                                  {index + 1}位
+                                </Badge>
+                                <button
+                                  onClick={() => handleStudentClick(student)}
+                                  className="font-semibold hover:underline cursor-pointer"
+                                >
+                                  {student.name}
+                                </button>
+                              </div>
+                              {student.class && (
+                                <p className="text-sm text-muted-foreground mt-1">
+                                  {getClassLabel(student.class)}
+                                </p>
+                              )}
+                            </div>
+                            <div className="text-right">
+                              <div className="text-2xl font-bold">{points}</div>
+                              <div className="text-xs text-muted-foreground">pt</div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )
+                  })}
+                </div>
+
+                {/* 全員のランキングテーブル */}
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12">
+                        <Checkbox
+                          checked={selectedStudentIds.size === students.length && students.length > 0}
+                          onCheckedChange={handleSelectAll}
+                        />
+                      </TableHead>
+                      <TableHead className="w-16">順位</TableHead>
+                      <TableHead>名前</TableHead>
+                      <TableHead>クラス</TableHead>
+                      <TableHead className="text-right">ポイント</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {students.map((student, index) => {
+                      const points = rankingType === "monthly" ? (student as any).monthly_points || 0 : student.current_points
+                      const isSelected = selectedStudentIds.has(student.id)
+                      return (
+                        <TableRow key={student.id}>
+                          <TableCell>
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={(checked) => handleSelectStudent(student.id, checked as boolean)}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={index < 3 ? "default" : "outline"}>{index + 1}</Badge>
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            <button
+                              onClick={() => handleStudentClick(student)}
+                              className="hover:underline cursor-pointer"
+                            >
+                              {student.name}
+                            </button>
+                          </TableCell>
+                          <TableCell>{getClassLabel(student.class)}</TableCell>
+                          <TableCell className="text-right font-semibold">{points} pt</TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* セクション1: ポイント設定 */}
+        <Card>
+          <CardHeader>
+            <CardTitle>ポイント設定</CardTitle>
+            <CardDescription>入室時のポイント付与に関する設定を行います</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="entry-points">入室ポイント付与量</Label>
+              <Input
+                id="entry-points"
+                type="number"
+                min="0"
+                value={entryPoints}
+                onChange={(e) => setEntryPoints(e.target.value)}
+                className="max-w-xs"
+              />
+              <p className="text-sm text-muted-foreground">入室1回あたりに付与するポイント数（現在は1点固定）</p>
+            </div>
+
+            <div className="flex items-center justify-between rounded-lg border border-border p-4">
+              <div className="space-y-0.5">
+                <Label htmlFor="daily-limit" className="text-base">
+                  1日1回制限
+                </Label>
+                <p className="text-sm text-muted-foreground">同じ日に複数回入室してもポイントは1回のみ付与されます</p>
+              </div>
+              <Switch id="daily-limit" checked={dailyLimit} onCheckedChange={setDailyLimit} />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* セクション2: ポイントボーナス設定 */}
+        <Card>
+          <CardHeader>
+            <CardTitle>ポイントボーナス設定</CardTitle>
+            <CardDescription>クラスごとにボーナス閾値とボーナスポイント数を設定します</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <h3 className="mb-2 text-sm font-medium">クラス別設定</h3>
+                <div className="grid gap-4 sm:grid-cols-5">
+                  <Button
+                    variant="outline"
+                    className="h-auto flex-col gap-2 py-6"
+                    onClick={() => setKindergartenBonusDialogOpen(true)}
+                  >
+                    <span className="font-semibold">キンダー</span>
+                    <span className="text-xs text-muted-foreground">ボーナス閾値を設定</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-auto flex-col gap-2 py-6"
+                    onClick={() => setBeginnerBonusDialogOpen(true)}
+                  >
+                    <span className="font-semibold">ビギナー</span>
+                    <span className="text-xs text-muted-foreground">ボーナス閾値を設定</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-auto flex-col gap-2 py-6"
+                    onClick={() => setChallengerBonusDialogOpen(true)}
+                  >
+                    <span className="font-semibold">チャレンジャー</span>
+                    <span className="text-xs text-muted-foreground">ボーナス閾値を設定</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-auto flex-col gap-2 py-6"
+                    onClick={() => setCreatorBonusDialogOpen(true)}
+                  >
+                    <span className="font-semibold">クリエイター</span>
+                    <span className="text-xs text-muted-foreground">ボーナス閾値を設定</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-auto flex-col gap-2 py-6"
+                    onClick={() => setInnovatorBonusDialogOpen(true)}
+                  >
+                    <span className="font-semibold">イノベーター</span>
+                    <span className="text-xs text-muted-foreground">ボーナス閾値を設定</span>
+                  </Button>
+                </div>
+            </div>
+            <Alert>
+              <AlertDescription className="text-sm">
+                <ul className="list-disc list-inside space-y-1 mt-2">
+                  <li>新規登録時は、対応するクラスに紐づいた設定が適用されます</li>
+                  <li>個別設定をしたユーザーは、クラスが変更されても個別設定が優先されます</li>
+                  <li>優先度：個別設定 &gt; クラス設定</li>
+                  <li>同月内で設定した回数入室すると、設定したボーナスポイント数が付与されます（1ヶ月に1回のみ）</li>
+                </ul>
+              </AlertDescription>
+            </Alert>
+          </CardContent>
+        </Card>
+
+        {/* ボーナス閾値設定ダイアログ（クラス別） */}
+        <ClassBonusThresholdDialog
+          open={kindergartenBonusDialogOpen}
+          onOpenChange={setKindergartenBonusDialogOpen}
+          class="kindergarten"
+          classLabel="キンダー"
+        />
+        <ClassBonusThresholdDialog
+          open={beginnerBonusDialogOpen}
+          onOpenChange={setBeginnerBonusDialogOpen}
+          class="beginner"
+          classLabel="ビギナー"
+        />
+        <ClassBonusThresholdDialog
+          open={challengerBonusDialogOpen}
+          onOpenChange={setChallengerBonusDialogOpen}
+          class="challenger"
+          classLabel="チャレンジャー"
+        />
+        <ClassBonusThresholdDialog
+          open={creatorBonusDialogOpen}
+          onOpenChange={setCreatorBonusDialogOpen}
+          class="creator"
+          classLabel="クリエイター"
+        />
+        <ClassBonusThresholdDialog
+          open={innovatorBonusDialogOpen}
+          onOpenChange={setInnovatorBonusDialogOpen}
+          class="innovator"
+          classLabel="イノベーター"
+        />
+
+        {/* 保存ボタン */}
+        <div className="flex justify-end">
+          <Button onClick={handleSave} size="lg" className="gap-2">
+            <Save className="h-4 w-4" />
+            保存
+          </Button>
+        </div>
+
+        {/* 一括ポイント付与ダイアログ */}
+        <Dialog open={bulkAddDialogOpen} onOpenChange={setBulkAddDialogOpen}>
+          <DialogContent className="max-w-3xl max-h-[80vh] flex flex-col">
+            <DialogHeader>
+              <DialogTitle>一括ポイント付与</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>説明（任意）</Label>
+                  <div className="flex gap-2 items-center">
+                    <Input
+                      type="number"
+                      min="1"
+                      placeholder="全員に設定"
+                      className="w-32"
+                      disabled={isBulkAdding}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          const value = (e.target as HTMLInputElement).value
+                          if (value) {
+                            handleSetAllPoints(value)
+                            ;(e.target as HTMLInputElement).value = ""
+                          }
+                        }
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={isBulkAdding}
+                      onClick={() => {
+                        const input = document.querySelector('input[placeholder="全員に設定"]') as HTMLInputElement
+                        if (input?.value) {
+                          handleSetAllPoints(input.value)
+                          input.value = ""
+                        }
+                      }}
+                    >
+                      全員に適用
+                    </Button>
+                  </div>
+                </div>
+                <Input
+                  id="bulk-add-description"
+                  value={bulkAddDescription}
+                  onChange={(e) => setBulkAddDescription(e.target.value)}
+                  disabled={isBulkAdding}
+                  placeholder="例: 第1回テスト加点"
+                />
+              </div>
+              <div className="flex-1 overflow-y-auto border rounded-md">
+                <Table>
+                  <TableHeader className="sticky top-0 bg-background">
+                    <TableRow>
+                      <TableHead>名前</TableHead>
+                      <TableHead>クラス</TableHead>
+                      <TableHead className="text-right">現在のポイント</TableHead>
+                      <TableHead className="text-right w-32">付与ポイント</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {Array.from(selectedStudentIds)
+                      .map((studentId) => students.find((s) => s.id === studentId))
+                      .filter((s): s is Student => s !== undefined)
+                      .map((student) => (
+                        <TableRow key={student.id}>
+                          <TableCell className="font-medium">{student.name}</TableCell>
+                          <TableCell>{getClassLabel(student.class)}</TableCell>
+                          <TableCell className="text-right">{student.current_points} pt</TableCell>
+                          <TableCell>
+                            <Input
+                              type="number"
+                              min="1"
+                              value={bulkAddPoints[student.id] || ""}
+                              onChange={(e) => handleBulkPointsChange(student.id, e.target.value)}
+                              disabled={isBulkAdding}
+                              placeholder="0"
+                              className="text-right"
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                選択した{selectedStudentIds.size}名に個別にポイントを付与できます
+              </p>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setBulkAddDialogOpen(false)} disabled={isBulkAdding}>
+                キャンセル
+              </Button>
+              <Button onClick={handleBulkAdd} disabled={isBulkAdding}>
+                {isBulkAdding ? "付与中..." : "付与する"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* 生徒のポイント履歴ダイアログ */}
+        <Dialog open={studentHistoryDialogOpen} onOpenChange={setStudentHistoryDialogOpen}>
+          <DialogContent className="max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>
+                {selectedStudent?.name}さんのポイント履歴
+              </DialogTitle>
+            </DialogHeader>
+            <div className="max-h-[60vh] overflow-y-auto">
+              {isLoadingHistory ? (
+                <div className="text-center py-8 text-muted-foreground">読み込み中...</div>
+              ) : studentPointTransactions.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">ポイント履歴がありません</div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>日時</TableHead>
+                      <TableHead>種別</TableHead>
+                      <TableHead className="text-right">ポイント</TableHead>
+                      <TableHead>説明</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {studentPointTransactions.map((transaction) => (
+                      <TableRow key={transaction.id}>
+                        <TableCell>
+                          {new Date(transaction.createdAt).toLocaleString("ja-JP", {
+                            year: "numeric",
+                            month: "2-digit",
+                            day: "2-digit",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            second: "2-digit",
+                          })}
+                        </TableCell>
+                        <TableCell>
+                          {transaction.transactionType === "entry"
+                            ? "入室"
+                            : transaction.transactionType === "bonus"
+                            ? "ボーナス"
+                            : transaction.transactionType === "consumption"
+                            ? "消費"
+                            : transaction.transactionType === "admin_add"
+                            ? "管理追加"
+                            : transaction.transactionType === "admin_subtract"
+                            ? "管理減算"
+                            : transaction.transactionType}
+                        </TableCell>
+                        <TableCell
+                          className={`text-right font-semibold ${
+                            transaction.points > 0 ? "text-green-600" : "text-red-600"
+                          }`}
+                        >
+                          {transaction.points > 0 ? "+" : ""}
+                          {transaction.points} pt
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {transaction.description || "-"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setStudentHistoryDialogOpen(false)}>
+                閉じる
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </AdminLayout>
+  )
+}
+

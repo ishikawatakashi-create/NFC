@@ -25,10 +25,10 @@ export async function GET(req: Request) {
 
   const supabase = getSupabase();
 
-  // classカラム、card_id、role、最終イベント情報、個別開放時間を含めて取得を試みる
+  // classカラム、card_id、role、最終イベント情報、個別開放時間、ポイント情報を含めて取得を試みる
   let query = supabase
     .from("students")
-    .select("id,name,grade,status,class,role,card_id,last_event_type,last_event_timestamp,access_start_time,access_end_time,has_custom_access_time,created_at")
+    .select("id,name,grade,status,class,role,card_id,last_event_type,last_event_timestamp,access_start_time,access_end_time,has_custom_access_time,current_points,created_at")
     .eq("site_id", siteId);
 
   // カードIDでフィルタ
@@ -38,12 +38,13 @@ export async function GET(req: Request) {
 
   let { data, error } = await query.order("created_at", { ascending: false });
 
-  // カラムが存在しない場合は、存在するカラムのみで再試行
-  if (error && (error.message?.includes("column students.class does not exist") || 
-                error.message?.includes("column students.card_id does not exist") ||
-                error.message?.includes("column students.role does not exist") ||
-                error.message?.includes("column students.last_event_type does not exist") ||
-                error.message?.includes("column students.access_start_time does not exist"))) {
+    // カラムが存在しない場合は、存在するカラムのみで再試行
+    if (error && (error.message?.includes("column students.class does not exist") || 
+                  error.message?.includes("column students.card_id does not exist") ||
+                  error.message?.includes("column students.role does not exist") ||
+                  error.message?.includes("column students.last_event_type does not exist") ||
+                  error.message?.includes("column students.access_start_time does not exist") ||
+                  error.message?.includes("column students.current_points does not exist"))) {
     const { data: dataFallback, error: errorFallback } = await supabase
       .from("students")
       .select("id,name,grade,status,created_at")
@@ -65,7 +66,8 @@ export async function GET(req: Request) {
       last_event_timestamp: null,
       access_start_time: null,
       access_end_time: null,
-      has_custom_access_time: false
+      has_custom_access_time: false,
+      current_points: 0
     })) || null;
     error = null;
   }

@@ -26,10 +26,6 @@ export async function GET(req: Request) {
       );
     }
 
-    if (!studentId) {
-      return NextResponse.json({ ok: false, error: "studentId は必須です" }, { status: 400 });
-    }
-
     const supabase = getSupabase();
 
     let query = supabase
@@ -44,9 +40,13 @@ export async function GET(req: Request) {
         students!inner(id, name)
       `)
       .eq("site_id", siteId)
-      .eq("student_id", studentId)
       .order("created_at", { ascending: false })
-      .limit(1000);
+      .limit(10000);
+
+    // studentIdが指定されている場合はフィルタ
+    if (studentId) {
+      query = query.eq("student_id", studentId);
+    }
 
     // 日付範囲フィルタ
     if (startDate) {

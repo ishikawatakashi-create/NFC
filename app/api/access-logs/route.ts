@@ -2,11 +2,13 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import {
   getStudentBonusThreshold,
+  getStudentBonusPoints,
   hasReceivedPointsToday,
   getMonthlyEntryCount,
   hasReceivedBonusThisMonth,
   addPoints,
 } from "@/lib/point-utils";
+import { getPointSettings } from "@/lib/point-settings-utils";
 
 function getSupabase() {
   return createClient(
@@ -229,27 +231,40 @@ export async function POST(req: Request) {
     if (eventType === "entry" && studentData.role === "student") {
       console.log(`[AccessLogs] ✅ Student is eligible for points, starting point award process for ${studentData.name} (${studentId})`);
       try {
-        // 1. 入室ポイント（1日1回のみ）
-        const hasReceivedToday = await hasReceivedPointsToday(siteId, studentId);
-        console.log(`[Points] Student ${studentId}: hasReceivedToday=${hasReceivedToday}`);
-        
-        if (!hasReceivedToday) {
+        // ポイント設定を取得
+        const pointSettings = await getPointSettings(siteId);
+        const entryPoints = pointSettings.entry_points;
+        const dailyLimit = pointSettings.daily_limit;
+
+        // 1. 入室ポイント（1日1回制限が有効な場合のみチェック）
+        let shouldAwardEntryPoints = true;
+        if (dailyLimit) {
+          const hasReceivedToday = await hasReceivedPointsToday(siteId, studentId);
+          console.log(`[Points] Student ${studentId}: hasReceivedToday=${hasReceivedToday}, dailyLimit=${dailyLimit}`);
+          shouldAwardEntryPoints = !hasReceivedToday;
+        }
+
+        if (shouldAwardEntryPoints && entryPoints > 0) {
           const entryPointsAdded = await addPoints(
             siteId,
             studentId,
-            1,
+            entryPoints,
             "entry",
             "入室によるポイント付与",
             logData.id
           );
-          console.log(`[Points] Student ${studentId}: entryPointsAdded=${entryPointsAdded}`);
+          console.log(`[Points] Student ${studentId}: entryPointsAdded=${entryPointsAdded}, points=${entryPoints}`);
           if (entryPointsAdded) {
-            pointsAwarded.entry = 1;
+            pointsAwarded.entry = entryPoints;
           } else {
             console.error(`[Points] Failed to add entry points for student ${studentId}`);
           }
         } else {
-          console.log(`[Points] Student ${studentId}: Already received points today, skipping entry points`);
+          if (dailyLimit) {
+            console.log(`[Points] Student ${studentId}: Already received points today, skipping entry points`);
+          } else if (entryPoints === 0) {
+            console.log(`[Points] Student ${studentId}: Entry points is set to 0, skipping entry points`);
+          }
         }
 
         // 2. ボーナスポイント（同月内でX回入室で3点、1ヶ月に1回のみ）
@@ -269,17 +284,21 @@ export async function POST(req: Request) {
           console.log(`[Points] Student ${studentId}: hasReceivedBonus=${hasReceivedBonus}`);
           
           if (!hasReceivedBonus) {
+            // クラス別のボーナスポイント数を取得
+            const bonusPoints = await getStudentBonusPoints(siteId, studentData.class);
+            console.log(`[Points] Student ${studentId}: bonusPoints=${bonusPoints} (class: ${studentData.class})`);
+            
             const bonusPointsAdded = await addPoints(
               siteId,
               studentId,
-              3,
+              bonusPoints,
               "bonus",
               `同月内${bonusThreshold}回入室達成によるボーナス`,
               logData.id
             );
             console.log(`[Points] Student ${studentId}: bonusPointsAdded=${bonusPointsAdded}`);
             if (bonusPointsAdded) {
-              pointsAwarded.bonus = 3;
+              pointsAwarded.bonus = bonusPoints;
             } else {
               console.error(`[Points] Failed to add bonus points for student ${studentId}`);
             }
