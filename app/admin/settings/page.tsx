@@ -13,6 +13,8 @@ import { AlertTriangle, Save, Clock } from "lucide-react"
 import { useState } from "react"
 import { RoleAccessTimeDialog } from "@/components/admin/role-access-time-dialog"
 import { IndividualAccessTimeDialog } from "@/components/admin/individual-access-time-dialog"
+import { RoleBonusThresholdDialog } from "@/components/admin/role-bonus-threshold-dialog"
+import { ClassBonusThresholdDialog } from "@/components/admin/class-bonus-threshold-dialog"
 
 export default function SettingsPage() {
   const { toast } = useToast()
@@ -22,6 +24,18 @@ export default function SettingsPage() {
   const [partTimeDialogOpen, setPartTimeDialogOpen] = useState(false)
   const [fullTimeDialogOpen, setFullTimeDialogOpen] = useState(false)
   const [individualDialogOpen, setIndividualDialogOpen] = useState(false)
+
+  // ボーナス閾値設定ダイアログの状態（属性別）
+  const [studentBonusDialogOpen, setStudentBonusDialogOpen] = useState(false)
+  const [partTimeBonusDialogOpen, setPartTimeBonusDialogOpen] = useState(false)
+  const [fullTimeBonusDialogOpen, setFullTimeBonusDialogOpen] = useState(false)
+
+  // ボーナス閾値設定ダイアログの状態（クラス別）
+  const [kindergartenBonusDialogOpen, setKindergartenBonusDialogOpen] = useState(false)
+  const [beginnerBonusDialogOpen, setBeginnerBonusDialogOpen] = useState(false)
+  const [challengerBonusDialogOpen, setChallengerBonusDialogOpen] = useState(false)
+  const [creatorBonusDialogOpen, setCreatorBonusDialogOpen] = useState(false)
+  const [innovatorBonusDialogOpen, setInnovatorBonusDialogOpen] = useState(false)
 
   // セクション2: 通知テンプレート
   const [entryTemplate, setEntryTemplate] = useState("[生徒名]さんが入室しました。\n時刻: [現在時刻]")
@@ -138,6 +152,58 @@ export default function SettingsPage() {
           onOpenChange={setIndividualDialogOpen}
         />
 
+        {/* ボーナス閾値設定ダイアログ（属性別） */}
+        <RoleBonusThresholdDialog
+          open={studentBonusDialogOpen}
+          onOpenChange={setStudentBonusDialogOpen}
+          role="student"
+          roleLabel="生徒"
+        />
+        <RoleBonusThresholdDialog
+          open={partTimeBonusDialogOpen}
+          onOpenChange={setPartTimeBonusDialogOpen}
+          role="part_time"
+          roleLabel="アルバイト"
+        />
+        <RoleBonusThresholdDialog
+          open={fullTimeBonusDialogOpen}
+          onOpenChange={setFullTimeBonusDialogOpen}
+          role="full_time"
+          roleLabel="正社員"
+        />
+
+        {/* ボーナス閾値設定ダイアログ（クラス別） */}
+        <ClassBonusThresholdDialog
+          open={kindergartenBonusDialogOpen}
+          onOpenChange={setKindergartenBonusDialogOpen}
+          class="kindergarten"
+          classLabel="キンダー"
+        />
+        <ClassBonusThresholdDialog
+          open={beginnerBonusDialogOpen}
+          onOpenChange={setBeginnerBonusDialogOpen}
+          class="beginner"
+          classLabel="ビギナー"
+        />
+        <ClassBonusThresholdDialog
+          open={challengerBonusDialogOpen}
+          onOpenChange={setChallengerBonusDialogOpen}
+          class="challenger"
+          classLabel="チャレンジャー"
+        />
+        <ClassBonusThresholdDialog
+          open={creatorBonusDialogOpen}
+          onOpenChange={setCreatorBonusDialogOpen}
+          class="creator"
+          classLabel="クリエイター"
+        />
+        <ClassBonusThresholdDialog
+          open={innovatorBonusDialogOpen}
+          onOpenChange={setInnovatorBonusDialogOpen}
+          class="innovator"
+          classLabel="イノベーター"
+        />
+
         {/* セクション2: 通知テンプレート */}
         <Card>
           <CardHeader>
@@ -180,7 +246,103 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        {/* セクション3: ポイント設定 */}
+        {/* セクション3: ボーナス閾値設定 */}
+        <Card>
+          <CardHeader>
+            <CardTitle>ボーナス閾値設定</CardTitle>
+            <CardDescription>属性ごと、またはクラスごとにボーナス閾値を設定します</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-4">
+              <div>
+                <h3 className="mb-2 text-sm font-medium">属性別設定</h3>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <Button
+                    variant="outline"
+                    className="h-auto flex-col gap-2 py-6"
+                    onClick={() => setStudentBonusDialogOpen(true)}
+                  >
+                    <span className="font-semibold">生徒</span>
+                    <span className="text-xs text-muted-foreground">ボーナス閾値を設定</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-auto flex-col gap-2 py-6"
+                    onClick={() => setPartTimeBonusDialogOpen(true)}
+                  >
+                    <span className="font-semibold">アルバイト</span>
+                    <span className="text-xs text-muted-foreground">ボーナス閾値を設定</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-auto flex-col gap-2 py-6"
+                    onClick={() => setFullTimeBonusDialogOpen(true)}
+                  >
+                    <span className="font-semibold">正社員</span>
+                    <span className="text-xs text-muted-foreground">ボーナス閾値を設定</span>
+                  </Button>
+                </div>
+              </div>
+              <div>
+                <h3 className="mb-2 text-sm font-medium">クラス別設定</h3>
+                <div className="grid gap-4 sm:grid-cols-5">
+                  <Button
+                    variant="outline"
+                    className="h-auto flex-col gap-2 py-6"
+                    onClick={() => setKindergartenBonusDialogOpen(true)}
+                  >
+                    <span className="font-semibold">キンダー</span>
+                    <span className="text-xs text-muted-foreground">ボーナス閾値を設定</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-auto flex-col gap-2 py-6"
+                    onClick={() => setBeginnerBonusDialogOpen(true)}
+                  >
+                    <span className="font-semibold">ビギナー</span>
+                    <span className="text-xs text-muted-foreground">ボーナス閾値を設定</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-auto flex-col gap-2 py-6"
+                    onClick={() => setChallengerBonusDialogOpen(true)}
+                  >
+                    <span className="font-semibold">チャレンジャー</span>
+                    <span className="text-xs text-muted-foreground">ボーナス閾値を設定</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-auto flex-col gap-2 py-6"
+                    onClick={() => setCreatorBonusDialogOpen(true)}
+                  >
+                    <span className="font-semibold">クリエイター</span>
+                    <span className="text-xs text-muted-foreground">ボーナス閾値を設定</span>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="h-auto flex-col gap-2 py-6"
+                    onClick={() => setInnovatorBonusDialogOpen(true)}
+                  >
+                    <span className="font-semibold">イノベーター</span>
+                    <span className="text-xs text-muted-foreground">ボーナス閾値を設定</span>
+                  </Button>
+                </div>
+              </div>
+            </div>
+            <Alert>
+              <AlertDescription className="text-sm">
+                <ul className="list-disc list-inside space-y-1 mt-2">
+                  <li>新規登録時は、対応するクラスまたは属性に紐づいた設定が適用されます</li>
+                  <li>個別設定をしたユーザーは、クラスや属性が変更されても個別設定が優先されます</li>
+                  <li>優先度：個別設定 &gt; クラス設定 &gt; 属性設定</li>
+                  <li>同月内で設定した回数入室すると、ボーナスポイント3点が付与されます（1ヶ月に1回のみ）</li>
+                </ul>
+              </AlertDescription>
+            </Alert>
+          </CardContent>
+        </Card>
+
+        {/* セクション4: ポイント設定 */}
         <Card>
           <CardHeader>
             <CardTitle>ポイント設定</CardTitle>
@@ -197,7 +359,7 @@ export default function SettingsPage() {
                 onChange={(e) => setEntryPoints(e.target.value)}
                 className="max-w-xs"
               />
-              <p className="text-sm text-muted-foreground">入室1回あたりに付与するポイント数</p>
+              <p className="text-sm text-muted-foreground">入室1回あたりに付与するポイント数（現在は1点固定）</p>
             </div>
 
             <div className="flex items-center justify-between rounded-lg border border-border p-4">

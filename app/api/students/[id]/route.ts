@@ -102,7 +102,7 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await req.json();
-    const { name, grade, class: studentClass, status, role, cardId, card_id, access_start_time, access_end_time, has_custom_access_time } = body as { 
+    const { name, grade, class: studentClass, status, role, cardId, card_id, access_start_time, access_end_time, has_custom_access_time, bonus_threshold, has_custom_bonus_threshold } = body as { 
       name?: string; 
       grade?: string; 
       class?: string | null; 
@@ -113,6 +113,8 @@ export async function PATCH(
       access_start_time?: string | null;
       access_end_time?: string | null;
       has_custom_access_time?: boolean;
+      bonus_threshold?: number | null;
+      has_custom_bonus_threshold?: boolean;
     };
 
     const siteId = process.env.SITE_ID;
@@ -188,6 +190,8 @@ export async function PATCH(
     if (access_start_time !== undefined) updateData.access_start_time = access_start_time;
     if (access_end_time !== undefined) updateData.access_end_time = access_end_time;
     if (has_custom_access_time !== undefined) updateData.has_custom_access_time = has_custom_access_time;
+    if (bonus_threshold !== undefined) updateData.bonus_threshold = bonus_threshold;
+    if (has_custom_bonus_threshold !== undefined) updateData.has_custom_bonus_threshold = has_custom_bonus_threshold;
 
     // 更新するフィールドがない場合
     if (Object.keys(updateData).length === 0) {
@@ -294,7 +298,7 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await req.json();
-    const { name, grade, class: studentClass, status, role, card_id, access_start_time, access_end_time, has_custom_access_time } = body as { 
+    const { name, grade, class: studentClass, status, role, card_id, access_start_time, access_end_time, has_custom_access_time, bonus_threshold, has_custom_bonus_threshold } = body as { 
       name?: string; 
       grade?: string; 
       class?: string | null; 
@@ -304,6 +308,8 @@ export async function PUT(
       access_start_time?: string | null;
       access_end_time?: string | null;
       has_custom_access_time?: boolean;
+      bonus_threshold?: number | null;
+      has_custom_bonus_threshold?: boolean;
     };
 
     const siteId = process.env.SITE_ID;
@@ -397,6 +403,14 @@ export async function PUT(
     }
     if (has_custom_access_time !== undefined) {
       updateData.has_custom_access_time = has_custom_access_time;
+    }
+
+    // 個別ボーナス閾値設定が明示的に指定されている場合は更新
+    if (bonus_threshold !== undefined) {
+      updateData.bonus_threshold = bonus_threshold;
+    }
+    if (has_custom_bonus_threshold !== undefined) {
+      updateData.has_custom_bonus_threshold = has_custom_bonus_threshold;
     }
 
     // 個別設定が明示的に指定されていない場合、かつ個別設定がない（または未設定）場合、

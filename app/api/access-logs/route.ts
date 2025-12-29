@@ -1,5 +1,12 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import {
+  getStudentBonusThreshold,
+  hasReceivedPointsToday,
+  getMonthlyEntryCount,
+  hasReceivedBonusThisMonth,
+  addPoints,
+} from "@/lib/point-utils";
 
 function getSupabase() {
   return createClient(
@@ -130,7 +137,7 @@ export async function POST(req: Request) {
     // 生徒の現在の状態を確認
     const { data: studentData, error: studentError } = await supabase
       .from("students")
-      .select("id, name, last_event_type")
+      .select("id, name, last_event_type, role, class, bonus_threshold, has_custom_bonus_threshold")
       .eq("id", studentId)
       .eq("site_id", siteId)
       .single();
@@ -205,6 +212,82 @@ export async function POST(req: Request) {
       console.warn("Failed to update student last event:", updateError);
     }
 
+    // 入室時かつ生徒ユーザーの場合、ポイントを付与
+    const pointsAwarded: { entry?: number; bonus?: number } = {};
+    if (eventType === "entry" && studentData.role === "student") {
+      try {
+        // 1. 入室ポイント（1日1回のみ）
+        const hasReceivedToday = await hasReceivedPointsToday(siteId, studentId);
+        console.log(`[Points] Student ${studentId}: hasReceivedToday=${hasReceivedToday}`);
+        
+        if (!hasReceivedToday) {
+          const entryPointsAdded = await addPoints(
+            siteId,
+            studentId,
+            1,
+            "entry",
+            "入室によるポイント付与",
+            logData.id
+          );
+          console.log(`[Points] Student ${studentId}: entryPointsAdded=${entryPointsAdded}`);
+          if (entryPointsAdded) {
+            pointsAwarded.entry = 1;
+          } else {
+            console.error(`[Points] Failed to add entry points for student ${studentId}`);
+          }
+        } else {
+          console.log(`[Points] Student ${studentId}: Already received points today, skipping entry points`);
+        }
+
+        // 2. ボーナスポイント（同月内でX回入室で3点、1ヶ月に1回のみ）
+        const monthlyEntryCount = await getMonthlyEntryCount(siteId, studentId);
+        const bonusThreshold = await getStudentBonusThreshold(
+          siteId,
+          studentData.role as "student" | "part_time" | "full_time",
+          studentData.class || null,
+          studentData.has_custom_bonus_threshold || false,
+          studentData.bonus_threshold
+        );
+
+        console.log(`[Points] Student ${studentId}: monthlyEntryCount=${monthlyEntryCount}, bonusThreshold=${bonusThreshold}`);
+
+        if (monthlyEntryCount >= bonusThreshold) {
+          const hasReceivedBonus = await hasReceivedBonusThisMonth(siteId, studentId);
+          console.log(`[Points] Student ${studentId}: hasReceivedBonus=${hasReceivedBonus}`);
+          
+          if (!hasReceivedBonus) {
+            const bonusPointsAdded = await addPoints(
+              siteId,
+              studentId,
+              3,
+              "bonus",
+              `同月内${bonusThreshold}回入室達成によるボーナス`,
+              logData.id
+            );
+            console.log(`[Points] Student ${studentId}: bonusPointsAdded=${bonusPointsAdded}`);
+            if (bonusPointsAdded) {
+              pointsAwarded.bonus = 3;
+            } else {
+              console.error(`[Points] Failed to add bonus points for student ${studentId}`);
+            }
+          } else {
+            console.log(`[Points] Student ${studentId}: Already received bonus this month, skipping bonus points`);
+          }
+        } else {
+          console.log(`[Points] Student ${studentId}: Entry count (${monthlyEntryCount}) < threshold (${bonusThreshold}), no bonus`);
+        }
+      } catch (pointsError: any) {
+        // ポイント付与のエラーはログに記録するが、入室ログ自体は成功として扱う
+        console.error(`[Points] Error awarding points for student ${studentId}:`, pointsError);
+      }
+    } else {
+      if (eventType !== "entry") {
+        console.log(`[Points] Event type is ${eventType}, not entry. Skipping points.`);
+      } else if (studentData.role !== "student") {
+        console.log(`[Points] Student role is ${studentData.role}, not student. Skipping points.`);
+      }
+    }
+
     return NextResponse.json({
       ok: true,
       log: {
@@ -215,6 +298,7 @@ export async function POST(req: Request) {
         device: logData.device_id || logData.card_id,
         notification: logData.notification_status,
       },
+      pointsAwarded: Object.keys(pointsAwarded).length > 0 ? pointsAwarded : undefined,
     });
   } catch (e: any) {
     const errorMessage = e?.message || String(e) || "Unknown error";
