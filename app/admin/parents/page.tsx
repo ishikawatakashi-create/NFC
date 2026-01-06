@@ -69,7 +69,9 @@ export default function ParentsPage() {
     setError(null)
 
     try {
-      const res = await fetch("/api/parents", { cache: "no-store" })
+      // キャッシュを確実に回避するためtimestampを追加
+      const timestamp = new Date().getTime()
+      const res = await fetch(`/api/parents?_t=${timestamp}`, { cache: "no-store" })
       const data = await res.json()
 
       if (!res.ok || !data?.ok) {
@@ -93,13 +95,17 @@ export default function ParentsPage() {
       // 各親御さんに紐づいている生徒を取得
       for (const parent of apiParents) {
         try {
-          const studentRes = await fetch(`/api/parents/${parent.id}/students`)
+          const timestamp = new Date().getTime()
+          const studentRes = await fetch(`/api/parents/${parent.id}/students?_t=${timestamp}`, { cache: "no-store" })
           const studentData = await studentRes.json()
           if (studentData?.ok && studentData?.students) {
             parent.students = studentData.students.map((s: any) => ({
               id: String(s.id),
               name: s.name || "",
             }))
+            console.log(`[Parents] Loaded ${parent.students.length} students for parent ${parent.name} (${parent.id})`)
+          } else {
+            console.warn(`[Parents] No students found for parent ${parent.name} (${parent.id})`)
           }
         } catch (e) {
           console.error(`Failed to load students for parent ${parent.id}:`, e)
@@ -378,6 +384,9 @@ export default function ParentsPage() {
       // 新しく追加する生徒のみを追加
       const newStudentIds = newParent.studentIds.filter(id => !existingStudentIds.includes(id))
 
+      let successCount = 0
+      let failedCount = 0
+
       for (const studentId of newStudentIds) {
         const res = await fetch(`/api/parents/${linkingParent.id}/students`, {
           method: "POST",
@@ -391,6 +400,10 @@ export default function ParentsPage() {
         const data = await res.json()
         if (!res.ok || !data?.ok) {
           console.error(`Failed to link student ${studentId}:`, data)
+          failedCount++
+        } else {
+          console.log(`[Parents] Successfully linked student ${studentId} to parent ${linkingParent.id}`)
+          successCount++
         }
       }
 
@@ -398,7 +411,12 @@ export default function ParentsPage() {
       setLinkingParent(null)
       setNewParent(prev => ({ ...prev, studentIds: [] }))
       await loadParents()
-      alert("生徒を紐付けました")
+      
+      if (failedCount > 0) {
+        alert(`生徒を紐付けました（成功: ${successCount}件、失敗: ${failedCount}件）`)
+      } else {
+        alert(`生徒を${successCount}件紐付けました`)
+      }
     } catch (e: any) {
       const errorMessage = e?.message || String(e) || "Failed to link students"
       alert(`エラー: ${errorMessage}`)
