@@ -49,14 +49,20 @@ export async function middleware(request: NextRequest) {
     // 管理者情報を確認
     const siteId = process.env.SITE_ID;
     if (siteId) {
-      const { data: admin } = await supabase
+      const { data: admin, error: adminError } = await supabase
         .from("admins")
         .select("id")
         .eq("auth_user_id", user.id)
         .eq("site_id", siteId)
-        .single();
+        .maybeSingle();
+
+      if (adminError) {
+        console.error("[Middleware] Error checking admin:", adminError);
+        return NextResponse.redirect(new URL("/admin/login", request.url));
+      }
 
       if (!admin) {
+        console.log("[Middleware] Admin not found for user:", user.id);
         return NextResponse.redirect(new URL("/admin/login", request.url));
       }
     }

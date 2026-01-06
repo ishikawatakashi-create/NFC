@@ -36,9 +36,18 @@ export async function GET() {
       .select("id")
       .eq("auth_user_id", user.id)
       .eq("site_id", siteId)
-      .single();
+      .maybeSingle();
 
-    if (adminError || !admin) {
+    if (adminError) {
+      console.error("[AdminCheck] Error checking admin:", adminError);
+      return NextResponse.json(
+        { ok: false, error: `管理者情報の確認に失敗しました: ${adminError.message}` },
+        { status: 500 }
+      );
+    }
+
+    if (!admin) {
+      console.log("[AdminCheck] Admin not found for user:", user.id);
       return NextResponse.json(
         { ok: false, error: "管理者として登録されていません" },
         { status: 403 }
