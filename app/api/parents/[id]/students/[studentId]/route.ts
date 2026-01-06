@@ -1,12 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-}
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 // 親御さんと生徒の紐づけ削除
 export async function DELETE(
@@ -24,7 +17,8 @@ export async function DELETE(
       );
     }
 
-    const supabase = getSupabase();
+    // サービスロールキーを使用してRLSをバイパス
+    const supabase = getSupabaseAdmin();
 
     // 親御さんが存在するか確認
     const { data: parentData, error: parentError } = await supabase

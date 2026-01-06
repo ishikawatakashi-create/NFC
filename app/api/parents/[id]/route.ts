@@ -1,12 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-}
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 // 親御さん情報取得
 export async function GET(
@@ -24,7 +17,8 @@ export async function GET(
       );
     }
 
-    const supabase = getSupabase();
+    // サービスロールキーを使用してRLSをバイパス
+    const supabase = getSupabaseAdmin();
 
     const { data, error } = await supabase
       .from("parents")
@@ -119,7 +113,8 @@ export async function PATCH(
       );
     }
 
-    const supabase = getSupabase();
+    // サービスロールキーを使用してRLSをバイパス
+    const supabase = getSupabaseAdmin();
 
     const updateData: any = {};
     if (name !== undefined) updateData.name = name;
@@ -178,7 +173,8 @@ export async function DELETE(
       );
     }
 
-    const supabase = getSupabase();
+    // サービスロールキーを使用してRLSをバイパス
+    const supabase = getSupabaseAdmin();
 
     const { error } = await supabase.from("parents").delete().eq("id", id).eq("site_id", siteId);
 

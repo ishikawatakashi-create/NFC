@@ -1,12 +1,5 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-}
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 // LINEアカウント情報取得
 export async function GET(
@@ -24,7 +17,8 @@ export async function GET(
       );
     }
 
-    const supabase = getSupabase();
+    // サービスロールキーを使用してRLSをバイパス
+    const supabase = getSupabaseAdmin();
 
     // 親御さんが存在するか確認
     const { data: parentData, error: parentError } = await supabase
@@ -96,7 +90,8 @@ export async function POST(
       return NextResponse.json({ ok: false, error: "lineUserId は必須です" }, { status: 400 });
     }
 
-    const supabase = getSupabase();
+    // サービスロールキーを使用してRLSをバイパス
+    const supabase = getSupabaseAdmin();
 
     // 親御さんが存在するか確認
     const { data: parentData, error: parentError } = await supabase
@@ -205,7 +200,8 @@ export async function DELETE(
       );
     }
 
-    const supabase = getSupabase();
+    // サービスロールキーを使用してRLSをバイパス
+    const supabase = getSupabaseAdmin();
 
     // 親御さんが存在するか確認
     const { data: parentData, error: parentError } = await supabase
