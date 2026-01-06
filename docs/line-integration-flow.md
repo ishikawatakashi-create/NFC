@@ -141,20 +141,31 @@ migrations/create_parent_line_notification_tables.sql
 
 #### **方法A: Webhookで自動取得 → 管理画面で紐付け（推奨）**
 
-この方法は、親御さんが友だち追加した際に自動的にLINE User IDを取得します。
+この方法は、親御さんが友だち追加した際、またはメッセージを送信した際に自動的にLINE User IDを取得します。
 
-**親御さん側の操作:**
+**親御さん側の操作（2つの方法）:**
+
+**方法A-1: 友だち追加**
 1. LINE公式アカウントのQRコードをスキャン
 2. 友だち追加
 
+**方法A-2: メッセージ送信（既存の友だちの場合）**
+1. LINE公式アカウントに任意のメッセージを送信（例：「登録」や「こんにちは」など）
+2. メッセージ送信時にもLINE User IDが自動取得されます
+
 **システム側の動作:**
-- Webhook (`/api/line/webhook`) が `follow` イベントを受信
-- LINE User IDがログに記録される（コンソールログに出力）
+- Webhook (`/api/line/webhook`) が `follow` イベント（友だち追加）または `message` イベント（メッセージ受信）を受信
+- LINE User IDが `line_followers` テーブルに自動保存される
+- 既存の `parent_line_accounts` がある場合は自動的にアクティブ化される
 
 **管理者側の操作:**
 1. サーバーログまたはVercelのログを確認
    ```
-   [LineWebhook] New LINE user followed: U1234567890abcdefghijklmnopqrstuv. Parent needs to be linked manually.
+   [LineWebhook] Saved new LINE follower via message: U1234567890abcdefghijklmnopqrstuv
+   ```
+   または
+   ```
+   [LineWebhook] Saved new LINE follower: U1234567890abcdefghijklmnopqrstuv
    ```
 
 2. 管理画面で親御さんを登録（まだの場合）
@@ -178,6 +189,8 @@ migrations/create_parent_line_notification_tables.sql
    }
    ```
 
+**注意:** 既に友だち追加済みの親御さんが多い場合、全員に「ブロック→解除」してもらう必要はありません。メッセージを送信してもらうだけでLINE User IDを取得できます。
+
 ---
 
 #### **方法B: LINE User IDを親御さんから直接取得**
@@ -193,9 +206,11 @@ migrations/create_parent_line_notification_tables.sql
 
 2. **方法2: Webhook経由で自動取得（方法Aと同じ）**
 
-3. **方法3: 親御さんに最初のメッセージを送ってもらう**
-   - 親御さんがLINE公式アカウントに「登録」などのメッセージを送信
-   - Webhookで `message` イベントを受信し、User IDを記録
+3. **方法3: 親御さんにメッセージを送ってもらう（推奨・既存友だち向け）**
+   - 親御さんがLINE公式アカウントに任意のメッセージを送信（例：「登録」「こんにちは」など）
+   - Webhookで `message` イベントを受信し、User IDを `line_followers` テーブルに自動保存
+   - 既存の `parent_line_accounts` がある場合は自動的にアクティブ化
+   - **この方法は、既に友だち追加済みの親御さんが多い場合に特に有効です**
 
 ---
 
@@ -295,18 +310,27 @@ migrations/create_parent_line_notification_tables.sql
 5. 右上のユーザー情報アイコンをクリック
 6. 「Basic ID」欄に User ID が表示される
 
-### 方法3: テストメッセージで取得
+### 方法3: テストメッセージで取得（推奨・既存友だち向け）
 
-親御さんに「登録」などのメッセージを送ってもらい、Webhookで受信：
+親御さんに任意のメッセージ（例：「登録」「こんにちは」など）を送ってもらい、Webhookで受信：
 
-```typescript
-// app/api/line/webhook/route.ts の message イベント処理
-if (event.type === "message") {
-  const lineUserId = event.source.userId;
-  console.log(`[LineWebhook] Message from: ${lineUserId}`);
-  // このログからUser IDを取得
-}
-```
+**システム側の動作:**
+- Webhook (`/api/line/webhook`) が `message` イベントを受信
+- LINE User IDが `line_followers` テーブルに自動保存される
+- 既存の `parent_line_accounts` がある場合は自動的にアクティブ化される
+- サーバーログに以下のようなログが出力される：
+  ```
+  [LineWebhook] Saved new LINE follower via message: U1234567890abcdefghijklmnopqrstuv
+  ```
+  または既存の場合は：
+  ```
+  [LineWebhook] Updated LINE follower via message: U1234567890abcdefghijklmnopqrstuv
+  ```
+
+**この方法の利点:**
+- 既に友だち追加済みの親御さんが多い場合、全員に「ブロック→解除」してもらう必要がない
+- メッセージを送信してもらうだけでLINE User IDを取得できる
+- 既存の `parent_line_accounts` がある場合は自動的にアクティブ化される
 
 ---
 

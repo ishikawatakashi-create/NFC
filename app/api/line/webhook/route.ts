@@ -177,14 +177,119 @@ export async function POST(req: Request) {
         }
       }
 
-      // メッセージ受信イベント（必要に応じて実装）
+      // メッセージ受信イベント
       if (event.type === "message") {
         const lineUserId = event.source.userId;
         const messageType = event.message.type;
+        const timestamp = event.timestamp;
 
         console.log(
           `[LineWebhook] Message event received: lineUserId=${lineUserId}, type=${messageType}`
         );
+
+        // 既存のLINEアカウント情報を確認
+        const { data: existingAccount, error: checkError } = await supabase
+          .from("parent_line_accounts")
+          .select("id, parent_id, is_active")
+          .eq("line_user_id", lineUserId)
+          .single();
+
+        if (checkError && checkError.code !== "PGRST116") {
+          // PGRST116は「レコードが見つからない」エラーなので無視
+          console.error(`[LineWebhook] Error checking existing account:`, checkError);
+        } else if (existingAccount) {
+          // 既存のアカウントがある場合、アクティブ化
+          const { error: updateError } = await supabase
+            .from("parent_line_accounts")
+            .update({
+              is_active: true,
+              subscribed_at: new Date(timestamp).toISOString(),
+              unsubscribed_at: null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", existingAccount.id);
+
+          if (updateError) {
+            console.error(`[LineWebhook] Error updating account:`, updateError);
+          } else {
+            console.log(
+              `[LineWebhook] Reactivated LINE account for parent ${existingAccount.parent_id} via message`
+            );
+          }
+        }
+
+        // LINE友だち情報を取得して保存（メッセージ受信時にも取得可能にする）
+        try {
+          const lineChannelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+          if (lineChannelAccessToken) {
+            // LINEプロフィール情報を取得
+            const profileResponse = await fetch(`https://api.line.me/v2/bot/profile/${lineUserId}`, {
+              method: "GET",
+              headers: {
+                Authorization: `Bearer ${lineChannelAccessToken}`,
+              },
+            });
+
+            let displayName = null;
+            let pictureUrl = null;
+
+            if (profileResponse.ok) {
+              const profileData = await profileResponse.json();
+              displayName = profileData.displayName || null;
+              pictureUrl = profileData.pictureUrl || null;
+            }
+
+            // line_followersテーブルに保存（またはアクティブ化）
+            const { data: existingFollower, error: checkFollowerError } = await supabase
+              .from("line_followers")
+              .select("id")
+              .eq("site_id", siteId)
+              .eq("line_user_id", lineUserId)
+              .single();
+
+            if (checkFollowerError && checkFollowerError.code !== "PGRST116") {
+              console.error(`[LineWebhook] Error checking existing follower:`, checkFollowerError);
+            } else if (existingFollower) {
+              // 既存の友だちをアクティブ化（メッセージ受信時にも更新）
+              const { error: updateFollowerError } = await supabase
+                .from("line_followers")
+                .update({
+                  is_active: true,
+                  unfollowed_at: null,
+                  line_display_name: displayName,
+                  picture_url: pictureUrl,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("id", existingFollower.id);
+
+              if (updateFollowerError) {
+                console.error(`[LineWebhook] Error updating follower:`, updateFollowerError);
+              } else {
+                console.log(`[LineWebhook] Updated LINE follower via message: ${lineUserId}`);
+              }
+            } else {
+              // 新規友だちを保存（メッセージ受信時にも保存可能）
+              const { error: insertFollowerError } = await supabase
+                .from("line_followers")
+                .insert({
+                  site_id: siteId,
+                  line_user_id: lineUserId,
+                  line_display_name: displayName,
+                  picture_url: pictureUrl,
+                  is_active: true,
+                  followed_at: new Date(timestamp).toISOString(),
+                });
+
+              if (insertFollowerError) {
+                console.error(`[LineWebhook] Error inserting follower:`, insertFollowerError);
+              } else {
+                console.log(`[LineWebhook] Saved new LINE follower via message: ${lineUserId}`);
+              }
+            }
+          }
+        } catch (profileError) {
+          console.error(`[LineWebhook] Error fetching/saving profile:`, profileError);
+        }
 
         // テキストメッセージの場合、特定のコマンドに応答するなど
         if (messageType === "text") {
