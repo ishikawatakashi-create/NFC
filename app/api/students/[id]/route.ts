@@ -1,13 +1,6 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { getRoleBasedAccessTime } from "@/lib/access-time-utils";
-
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-}
 
 // 個別の生徒情報を取得
 export async function GET(
@@ -29,7 +22,7 @@ export async function GET(
       return NextResponse.json({ ok: false, error: "id は必須です" }, { status: 400 });
     }
 
-    const supabase = getSupabase();
+    const supabase = getSupabaseAdmin();
 
     // classカラム、card_id、role、最終イベント情報、個別開放時間、ポイント情報を含めて取得を試みる
     let { data, error } = await supabase
@@ -134,7 +127,7 @@ export async function PATCH(
       return NextResponse.json({ ok: false, error: "id は必須です" }, { status: 400 });
     }
 
-    const supabase = getSupabase();
+    const supabase = getSupabaseAdmin();
 
     // 現在の生徒情報を取得
     const { data: currentStudent } = await supabase
@@ -333,7 +326,7 @@ export async function PUT(
       return NextResponse.json({ ok: false, error: "name は必須です" }, { status: 400 });
     }
 
-    const supabase = getSupabase();
+    const supabase = getSupabaseAdmin();
 
     // 現在のユーザー情報を取得（個別設定の有無を確認するため）
     const { data: currentStudent } = await supabase

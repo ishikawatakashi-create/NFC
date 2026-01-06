@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import {
   getStudentBonusThreshold,
   getStudentBonusPoints,
@@ -12,13 +11,6 @@ import { getPointSettings } from "@/lib/point-settings-utils";
 import { sendLineNotificationToParents } from "@/lib/line-notification-utils";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { getStudentAccessTime, isPastEndTime } from "@/lib/access-time-utils";
-
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-}
 
 // 入退室ログ一覧取得
 export async function GET(req: Request) {
@@ -39,7 +31,7 @@ export async function GET(req: Request) {
       );
     }
 
-    const supabase = getSupabase();
+    const supabase = getSupabaseAdmin();
 
     // access_logsテーブルとstudentsテーブルをJOINして取得
     let query = supabase
@@ -142,7 +134,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "eventType は必須です" }, { status: 400 });
     }
 
-    const supabase = getSupabase();
+    const supabase = getSupabaseAdmin();
 
     // 生徒の現在の状態を確認
     const { data: studentData, error: studentError } = await supabase
@@ -150,7 +142,7 @@ export async function POST(req: Request) {
       .select("id, name, last_event_type, role, class, bonus_threshold, has_custom_bonus_threshold")
       .eq("id", studentId)
       .eq("site_id", siteId)
-      .single();
+      .maybeSingle();
 
     if (studentError) {
       const errorMessage = studentError.message || String(studentError);
