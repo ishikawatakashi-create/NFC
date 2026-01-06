@@ -98,7 +98,12 @@ export async function GET(req: Request) {
         email: p.email,
         relationship: p.relationship,
         notes: p.notes,
-        lineAccount: p.parent_line_accounts?.[0] || null,
+        lineAccount: p.parent_line_accounts?.[0] ? {
+          id: p.parent_line_accounts[0].id,
+          lineUserId: p.parent_line_accounts[0].line_user_id,
+          lineDisplayName: p.parent_line_accounts[0].line_display_name,
+          isActive: p.parent_line_accounts[0].is_active,
+        } : null,
       }));
 
       return NextResponse.json({ ok: true, parents });
