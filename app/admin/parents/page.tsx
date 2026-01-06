@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Plus, Search, Pencil, Trash2, UserPlus, MessageSquare, Users } from "lucide-react"
+import { Plus, Search, Pencil, Trash2, UserPlus, MessageSquare, Users, RefreshCw, Copy } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 
 interface Parent {
@@ -60,6 +60,9 @@ export default function ParentsPage() {
   })
   const [lineUserId, setLineUserId] = useState("")
   const [lineDisplayName, setLineDisplayName] = useState("")
+  const [lineFollowers, setLineFollowers] = useState<Array<{ userId: string; displayName: string; pictureUrl: string | null }>>([])
+  const [isLoadingFollowers, setIsLoadingFollowers] = useState(false)
+  const [showFollowers, setShowFollowers] = useState(false)
 
   async function loadParents() {
     setIsLoading(true)
@@ -182,7 +185,30 @@ export default function ParentsPage() {
         throw new Error(errorMessage)
       }
 
+      const createdParentId = data.parent?.id
+
       setIsAddDialogOpen(false)
+      
+      // LINE User IDが設定されている場合、自動的に紐付け
+      if (lineUserId && createdParentId) {
+        try {
+          const linkRes = await fetch(`/api/parents/${createdParentId}/line-account`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              lineUserId: lineUserId.trim(),
+              lineDisplayName: lineDisplayName.trim() || newParent.name.trim(),
+            }),
+          })
+          const linkData = await linkRes.json()
+          if (linkRes.ok && linkData?.ok) {
+            // 紐付け成功
+          }
+        } catch (e) {
+          console.error("Failed to auto-link LINE account:", e)
+        }
+      }
+
       setNewParent({
         name: "",
         phoneNumber: "",
@@ -191,6 +217,8 @@ export default function ParentsPage() {
         notes: "",
         studentIds: [],
       })
+      setLineUserId("")
+      setLineDisplayName("")
       await loadParents()
     } catch (e: any) {
       const errorMessage = e?.message || String(e) || "Failed to create parent"
@@ -359,6 +387,52 @@ export default function ParentsPage() {
     setIsLineLinkDialogOpen(true)
   }
 
+  const handleSelectLineFollower = (follower: { userId: string; displayName: string }) => {
+    // 既に紐付けられている親御さんを探す
+    const existingParent = parents.find(
+      (p) => p.lineAccount?.lineUserId === follower.userId && p.lineAccount?.isActive
+    )
+
+    if (existingParent) {
+      alert(`${existingParent.name} に既に紐付けられています`)
+      return
+    }
+
+    // 親御さんを選択するダイアログを表示するか、新規作成を促す
+    const shouldCreateNew = confirm(
+      `${follower.displayName} を紐付ける親御さんを選択してください。\n\n新規作成する場合は「OK」、既存の親御さんを選択する場合は「キャンセル」をクリックしてください。`
+    )
+
+    if (shouldCreateNew) {
+      // 新規作成
+      setNewParent({
+        name: follower.displayName,
+        phoneNumber: "",
+        email: "",
+        relationship: "mother",
+        notes: "",
+        studentIds: [],
+      })
+      setLineUserId(follower.userId)
+      setLineDisplayName(follower.displayName)
+      setIsAddDialogOpen(true)
+    } else {
+      // 既存の親御さんを選択
+      const parentName = prompt("紐付ける親御さんの名前を入力してください（検索用）:")
+      if (parentName) {
+        const foundParent = parents.find((p) => p.name.includes(parentName))
+        if (foundParent) {
+          setLinkingParent(foundParent)
+          setLineUserId(follower.userId)
+          setLineDisplayName(follower.displayName)
+          setIsLineLinkDialogOpen(true)
+        } else {
+          alert("親御さんが見つかりませんでした")
+        }
+      }
+    }
+  }
+
   const handleOpenStudentLinkDialog = (parent: Parent) => {
     setLinkingParent(parent)
     setNewParent(prev => ({
@@ -394,20 +468,117 @@ export default function ParentsPage() {
           </Card>
         )}
 
-        {/* 検索 */}
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-2">
-              <Search className="h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="名前、メールアドレス、電話番号で検索..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="max-w-sm"
-              />
-            </div>
-          </CardContent>
-        </Card>
+        {/* 検索とLINE友だち一覧 */}
+        <div className="flex gap-4">
+          <Card className="flex-1">
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-2">
+                <Search className="h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="名前、メールアドレス、電話番号で検索..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="max-w-sm"
+                />
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <Button
+                variant={showFollowers ? "default" : "outline"}
+                onClick={() => {
+                  setShowFollowers(!showFollowers)
+                  if (!showFollowers && lineFollowers.length === 0) {
+                    loadLineFollowers()
+                  }
+                }}
+              >
+                <MessageSquare className="h-4 w-4 mr-2" />
+                LINE友だち一覧
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* LINE友だち一覧 */}
+        {showFollowers && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle>LINE公式アカウントの友だち一覧 ({lineFollowers.length}人)</CardTitle>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={loadLineFollowers}
+                  disabled={isLoadingFollowers}
+                >
+                  <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingFollowers ? "animate-spin" : ""}`} />
+                  更新
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {isLoadingFollowers ? (
+                <p className="text-center py-8 text-muted-foreground">読み込み中...</p>
+              ) : lineFollowers.length === 0 ? (
+                <p className="text-center py-8 text-muted-foreground">友だちが登録されていません</p>
+              ) : (
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {lineFollowers.map((follower) => {
+                    const isLinked = parents.some(
+                      (p) => p.lineAccount?.lineUserId === follower.userId && p.lineAccount?.isActive
+                    )
+                    return (
+                      <div
+                        key={follower.userId}
+                        className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent"
+                      >
+                        <div className="flex items-center gap-3 flex-1">
+                          {follower.pictureUrl && (
+                            <img
+                              src={follower.pictureUrl}
+                              alt={follower.displayName}
+                              className="w-10 h-10 rounded-full"
+                            />
+                          )}
+                          <div className="flex-1">
+                            <p className="font-medium">{follower.displayName}</p>
+                            <p className="text-xs text-muted-foreground font-mono">{follower.userId}</p>
+                          </div>
+                          {isLinked && (
+                            <Badge variant="default" className="gap-1">
+                              <MessageSquare className="h-3 w-3" />
+                              紐付け済み
+                            </Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleCopyLineUserId(follower.userId)}
+                            title="LINE User IDをコピー"
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleSelectLineFollower(follower)}
+                            disabled={isLinked}
+                          >
+                            {isLinked ? "紐付け済み" : "紐付け"}
+                          </Button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* 一覧 */}
         <Card>
