@@ -25,7 +25,8 @@ export async function GET(req: Request) {
     );
   }
 
-  const supabase = getSupabase();
+  // サービスロールキーを使用してRLSをバイパス
+  const supabase = getSupabaseAdmin();
 
   // classカラム、card_id、role、最終イベント情報、個別開放時間、ポイント情報を含めて取得を試みる
   let query = supabase
@@ -47,11 +48,12 @@ export async function GET(req: Request) {
                   error.message?.includes("column students.last_event_type does not exist") ||
                   error.message?.includes("column students.access_start_time does not exist") ||
                   error.message?.includes("column students.current_points does not exist"))) {
-    const { data: dataFallback, error: errorFallback } = await supabase
-      .from("students")
-      .select("id,name,grade,status,created_at")
-      .eq("site_id", siteId)
-      .order("created_at", { ascending: false });
+      const supabaseFallback = getSupabaseAdmin();
+      const { data: dataFallback, error: errorFallback } = await supabaseFallback
+        .from("students")
+        .select("id,name,grade,status,created_at")
+        .eq("site_id", siteId)
+        .order("created_at", { ascending: false });
     
     if (errorFallback) {
       const errorMessage = errorFallback.message || String(errorFallback);
@@ -346,7 +348,8 @@ export async function DELETE(req: Request) {
       );
     }
 
-    const supabase = getSupabase();
+    // サービスロールキーを使用してRLSをバイパス
+    const supabase = getSupabaseAdmin();
 
     // 削除前に生徒情報を取得（ログ用）
     const { data: studentData, error: fetchError } = await supabase
