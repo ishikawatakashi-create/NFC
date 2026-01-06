@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getRoleBasedAccessTime } from "@/lib/access-time-utils";
 import { getCurrentAdmin } from "@/lib/auth-helpers";
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 function getSupabase() {
   return createClient(
@@ -173,7 +174,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "name は必須です" }, { status: 400 });
     }
 
-    const supabase = getSupabase();
+    // サービスロールキーを使用してRLSをバイパス
+    const supabase = getSupabaseAdmin();
 
     // カードIDが指定されている場合、重複チェック
     if (card_id && card_id.trim() !== "") {
@@ -251,7 +253,8 @@ export async function POST(req: Request) {
         status: "active"
       };
 
-      const { data: dataFallback, error: errorFallback } = await supabase
+      const supabaseFallback = getSupabaseAdmin();
+      const { data: dataFallback, error: errorFallback } = await supabaseFallback
         .from("students")
         .insert([insertDataFallback])
         .select("id,name,grade,status,created_at")
