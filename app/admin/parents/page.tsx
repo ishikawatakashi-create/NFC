@@ -132,6 +132,31 @@ export default function ParentsPage() {
     }
   }
 
+  async function loadLineFollowers() {
+    setIsLoadingFollowers(true)
+    try {
+      const res = await fetch("/api/line/followers", { cache: "no-store" })
+      const data = await res.json()
+
+      if (!res.ok || !data?.ok) {
+        const errorMessage = typeof data?.error === "string" 
+          ? data.error 
+          : data?.error?.message || String(data?.error) || "Failed to load LINE followers"
+        throw new Error(errorMessage)
+      }
+
+      // APIから直接followers配列を取得（プロフィール情報は既に含まれている）
+      const followers: Array<{ userId: string; displayName: string; pictureUrl: string | null }> = data.followers || []
+      setLineFollowers(followers)
+    } catch (e: any) {
+      const errorMessage = e?.message || String(e) || "Unknown error"
+      console.error("Failed to load LINE followers:", errorMessage)
+      alert(`LINE友だち一覧の取得に失敗しました: ${errorMessage}`)
+    } finally {
+      setIsLoadingFollowers(false)
+    }
+  }
+
   useEffect(() => {
     loadParents()
     loadStudents()
@@ -385,6 +410,16 @@ export default function ParentsPage() {
     setLineUserId(parent.lineAccount?.lineUserId || "")
     setLineDisplayName(parent.lineAccount?.lineDisplayName || parent.name)
     setIsLineLinkDialogOpen(true)
+  }
+
+  const handleCopyLineUserId = async (userId: string) => {
+    try {
+      await navigator.clipboard.writeText(userId)
+      alert("LINE User IDをコピーしました")
+    } catch (e) {
+      console.error("Failed to copy LINE User ID:", e)
+      alert("コピーに失敗しました")
+    }
   }
 
   const handleSelectLineFollower = (follower: { userId: string; displayName: string }) => {
