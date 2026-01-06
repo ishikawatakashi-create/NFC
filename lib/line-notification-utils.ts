@@ -131,14 +131,27 @@ export async function sendLineNotificationToParents(
       lineAccounts.map((acc: any) => [acc.parent_id, acc])
     );
 
-    // 4. イベント種別に応じたメッセージを作成
-    const eventMessages: Record<"entry" | "exit" | "forced_exit", string> = {
-      entry: `${studentName}さんが入室しました。`,
-      exit: `${studentName}さんが退室しました。`,
-      forced_exit: `${studentName}さんが自動退室しました。`,
-    };
+    // 4. 通知テンプレートを取得
+    const { data: pointSettings } = await supabase
+      .from("point_settings")
+      .select("entry_notification_template, exit_notification_template")
+      .eq("site_id", siteId)
+      .single();
 
-    const message = eventMessages[eventType];
+    // 5. イベント種別に応じたメッセージテンプレートを取得
+    let messageTemplate: string;
+    if (eventType === "entry") {
+      messageTemplate = pointSettings?.entry_notification_template || "[生徒名]さんが入室しました。\n時刻: [現在時刻]";
+    } else if (eventType === "exit") {
+      messageTemplate = pointSettings?.exit_notification_template || "[生徒名]さんが退室しました。\n時刻: [現在時刻]";
+    } else {
+      // forced_exitの場合は退室テンプレートを使用（「自動退室」と明記）
+      messageTemplate = pointSettings?.exit_notification_template 
+        ? pointSettings.exit_notification_template.replace("退室しました", "自動退室しました")
+        : "[生徒名]さんが自動退室しました。\n時刻: [現在時刻]";
+    }
+
+    // 6. タグを置換してメッセージを作成
     const timestamp = new Date().toLocaleString("ja-JP", {
       year: "numeric",
       month: "2-digit",
@@ -146,9 +159,12 @@ export async function sendLineNotificationToParents(
       hour: "2-digit",
       minute: "2-digit",
     });
-    const fullMessage = `${message}\n時刻: ${timestamp}`;
+    
+    const fullMessage = messageTemplate
+      .replace(/\[生徒名\]/g, studentName)
+      .replace(/\[現在時刻\]/g, timestamp);
 
-    // 5. 各親御さんにLINE通知を送信
+    // 7. 各親御さんにLINE通知を送信
     let sentCount = 0;
     const notificationLogs: Array<{
       site_id: string;
@@ -205,7 +221,7 @@ export async function sendLineNotificationToParents(
       }
     }
 
-    // 6. 通知ログをデータベースに保存
+    // 8. 通知ログをデータベースに保存
     if (notificationLogs.length > 0) {
       const { error: logError } = await supabase
         .from("line_notification_logs")

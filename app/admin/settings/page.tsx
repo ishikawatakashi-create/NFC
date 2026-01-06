@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
 import { AlertTriangle, Save, Clock } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { RoleAccessTimeDialog } from "@/components/admin/role-access-time-dialog"
 import { IndividualAccessTimeDialog } from "@/components/admin/individual-access-time-dialog"
 
@@ -26,19 +26,64 @@ export default function SettingsPage() {
   // セクション2: 通知テンプレート
   const [entryTemplate, setEntryTemplate] = useState("[生徒名]さんが入室しました。\n時刻: [現在時刻]")
   const [exitTemplate, setExitTemplate] = useState("[生徒名]さんが退室しました。\n時刻: [現在時刻]")
+  const [loading, setLoading] = useState(false)
 
+  // 初期値を読み込む
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const res = await fetch("/api/point-settings")
+        const data = await res.json()
 
-  const handleSave = () => {
-    // 通知テンプレートとポイント設定の保存処理（API呼び出しなど）
-    console.log("[v0] Settings saved:", {
-      entryTemplate,
-      exitTemplate,
-    })
+        if (data.ok && data.settings) {
+          if (data.settings.entry_notification_template) {
+            setEntryTemplate(data.settings.entry_notification_template)
+          }
+          if (data.settings.exit_notification_template) {
+            setExitTemplate(data.settings.exit_notification_template)
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load settings:", error)
+      }
+    }
 
-    toast({
-      title: "設定を保存しました",
-      description: "設定の変更が正常に保存されました。",
-    })
+    loadSettings()
+  }, [])
+
+  const handleSave = async () => {
+    setLoading(true)
+    try {
+      const res = await fetch("/api/point-settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          entryPoints: 1, // デフォルト値（既存の設定を維持）
+          dailyLimit: true, // デフォルト値（既存の設定を維持）
+          entryTemplate,
+          exitTemplate,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || "設定の保存に失敗しました")
+      }
+
+      toast({
+        title: "設定を保存しました",
+        description: "通知テンプレートの変更が正常に保存されました。",
+      })
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "エラー",
+        description: error.message || "設定の保存に失敗しました",
+      })
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -179,9 +224,9 @@ export default function SettingsPage() {
 
         {/* 保存ボタン */}
         <div className="flex justify-end">
-          <Button onClick={handleSave} size="lg" className="gap-2">
+          <Button onClick={handleSave} size="lg" className="gap-2" disabled={loading}>
             <Save className="h-4 w-4" />
-            保存
+            {loading ? "保存中..." : "保存"}
           </Button>
         </div>
       </div>

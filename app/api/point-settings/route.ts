@@ -24,7 +24,7 @@ export async function GET(req: Request) {
 
     const { data, error } = await supabase
       .from("point_settings")
-      .select("entry_points, daily_limit")
+      .select("entry_points, daily_limit, entry_notification_template, exit_notification_template")
       .eq("site_id", siteId)
       .single();
 
@@ -37,6 +37,8 @@ export async function GET(req: Request) {
     const settings = data || {
       entry_points: 1,
       daily_limit: true,
+      entry_notification_template: "[生徒名]さんが入室しました。\n時刻: [現在時刻]",
+      exit_notification_template: "[生徒名]さんが退室しました。\n時刻: [現在時刻]",
     };
 
     return NextResponse.json({ ok: true, settings });
@@ -50,9 +52,11 @@ export async function GET(req: Request) {
 export async function PUT(req: Request) {
   try {
     const body = await req.json();
-    const { entryPoints, dailyLimit } = body as {
+    const { entryPoints, dailyLimit, entryTemplate, exitTemplate } = body as {
       entryPoints: number;
       dailyLimit: boolean;
+      entryTemplate?: string;
+      exitTemplate?: string;
     };
 
     const siteId = process.env.SITE_ID;
@@ -73,20 +77,28 @@ export async function PUT(req: Request) {
 
     const supabase = getSupabase();
 
+    // UPSERT用のデータを構築
+    const updateData: any = {
+      site_id: siteId,
+      entry_points: entryPoints,
+      daily_limit: dailyLimit,
+      updated_at: new Date().toISOString(),
+    };
+
+    // 通知テンプレートが指定されている場合は追加
+    if (entryTemplate !== undefined) {
+      updateData.entry_notification_template = entryTemplate;
+    }
+    if (exitTemplate !== undefined) {
+      updateData.exit_notification_template = exitTemplate;
+    }
+
     // UPSERT（存在する場合は更新、存在しない場合は挿入）
     const { error } = await supabase
       .from("point_settings")
-      .upsert(
-        {
-          site_id: siteId,
-          entry_points: entryPoints,
-          daily_limit: dailyLimit,
-          updated_at: new Date().toISOString(),
-        },
-        {
-          onConflict: "site_id",
-        }
-      );
+      .upsert(updateData, {
+        onConflict: "site_id",
+      });
 
     if (error) {
       const errorMessage = error.message || String(error);
