@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getRoleBasedAccessTime } from "@/lib/access-time-utils";
+import { getCurrentAdmin } from "@/lib/auth-helpers";
 
 function getSupabase() {
   return createClient(
@@ -304,13 +305,17 @@ export async function DELETE(req: Request) {
     const { searchParams } = new URL(req.url);
     const id = searchParams.get("id");
 
+    console.log(`[Students] DELETE request received: studentId=${id}`);
+
     if (!id) {
+      console.error("[Students] DELETE: studentId is required");
       return NextResponse.json({ ok: false, error: "id は必須です" }, { status: 400 });
     }
 
     const siteId = process.env.SITE_ID;
 
     if (!siteId) {
+      console.error("[Students] DELETE: SITE_ID is not set");
       return NextResponse.json(
         { ok: false, error: "SITE_ID が .env.local に設定されていません" },
         { status: 500 }
@@ -318,6 +323,29 @@ export async function DELETE(req: Request) {
     }
 
     const supabase = getSupabase();
+
+    // 削除前に生徒情報を取得（ログ用）
+    const { data: studentData, error: fetchError } = await supabase
+      .from("students")
+      .select("id, name, site_id")
+      .eq("id", id)
+      .eq("site_id", siteId)
+      .single();
+
+    if (fetchError || !studentData) {
+      console.error(`[Students] DELETE: Student not found: id=${id}, error=${fetchError?.message || "Not found"}`);
+      return NextResponse.json(
+        { ok: false, error: "生徒が見つかりません" },
+        { status: 404 }
+      );
+    }
+
+    // 現在の管理者情報を取得（ログ用）
+    const adminInfo = await getCurrentAdmin();
+    const adminName = adminInfo ? `${adminInfo.firstName} ${adminInfo.lastName}` : "Unknown";
+    const adminId = adminInfo?.id || "Unknown";
+
+    console.log(`[Students] DELETE: Attempting to delete student: id=${id}, name=${studentData.name}, site_id=${siteId}, admin=${adminName} (${adminId})`);
 
     // site_idも確認して削除（セキュリティのため）
     const { error } = await supabase
@@ -328,12 +356,15 @@ export async function DELETE(req: Request) {
 
     if (error) {
       const errorMessage = error.message || String(error);
+      console.error(`[Students] DELETE: Failed to delete student: id=${id}, error=${errorMessage}`);
       return NextResponse.json({ ok: false, error: errorMessage }, { status: 500 });
     }
 
+    console.log(`[Students] DELETE: Successfully deleted student: id=${id}, name=${studentData.name}, site_id=${siteId}, admin=${adminName} (${adminId})`);
     return NextResponse.json({ ok: true });
   } catch (e: any) {
     const errorMessage = e?.message || String(e) || "Unknown error";
+    console.error(`[Students] DELETE: Unexpected error: ${errorMessage}`, e);
     return NextResponse.json({ ok: false, error: errorMessage }, { status: 500 });
   }
 }

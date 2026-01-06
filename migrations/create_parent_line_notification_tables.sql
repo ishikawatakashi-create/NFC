@@ -117,3 +117,5 @@ COMMENT ON COLUMN line_notification_logs.status IS '送信ステータス（succ
 COMMENT ON COLUMN line_notification_logs.error_message IS 'エラーメッセージ（失敗時）';
 
 
+
+

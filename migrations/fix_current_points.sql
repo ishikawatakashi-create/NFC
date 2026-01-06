@@ -23,3 +23,5 @@ DROP TABLE IF EXISTS calculated_points;
 -- SELECT id, name, current_points FROM students ORDER BY current_points DESC LIMIT 10;
 
 
+
+

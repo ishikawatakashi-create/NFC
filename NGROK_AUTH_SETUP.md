@@ -145,3 +145,5 @@ ngrok http 3001
 表示されたURLをAndroid端末で使用してください！
 
 
+
+

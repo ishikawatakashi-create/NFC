@@ -26,3 +26,5 @@ COMMENT ON COLUMN role_based_access_times.end_time IS '終了時刻';
 
 
 
+
+

@@ -93,3 +93,5 @@ COMMENT ON COLUMN class_based_bonus_thresholds.class IS 'クラス（kindergarte
 COMMENT ON COLUMN class_based_bonus_thresholds.bonus_threshold IS 'ボーナスポイントが付与される入室回数（同月内）';
 
 
+
+

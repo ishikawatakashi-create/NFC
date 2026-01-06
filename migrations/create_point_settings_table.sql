@@ -20,3 +20,5 @@ COMMENT ON COLUMN point_settings.entry_points IS '入室1回あたりに付与�
 COMMENT ON COLUMN point_settings.daily_limit IS '1日1回制限（trueの場合、同じ日に複数回入室してもポイントは1回のみ付与）';
 
 
+
+

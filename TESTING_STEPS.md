@@ -94,3 +94,5 @@ https://oppositionary-proletarianly-kena.ngrok-free.dev/kiosk/entry
 - カードを数秒間密着させる
 
 
+
+
