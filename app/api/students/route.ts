@@ -162,9 +162,12 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { name, grade, class: studentClass, role, card_id } = body as { name: string; grade?: string; class?: string; role?: string; card_id?: string };
 
+    console.log("[Students API] POST request received:", { name, grade, studentClass, role, card_id });
+
     const siteId = process.env.SITE_ID;
 
     if (!siteId) {
+      console.error("[Students API] SITE_ID is not set");
       return NextResponse.json(
         { ok: false, error: "SITE_ID が .env.local に設定されていません" },
         { status: 500 }
@@ -175,7 +178,17 @@ export async function POST(req: Request) {
     }
 
     // サービスロールキーを使用してRLSをバイパス
-    const supabase = getSupabaseAdmin();
+    let supabase;
+    try {
+      supabase = getSupabaseAdmin();
+      console.log("[Students API] Supabase admin client created successfully");
+    } catch (adminError: any) {
+      console.error("[Students API] Failed to create Supabase admin client:", adminError);
+      return NextResponse.json(
+        { ok: false, error: `Supabase接続エラー: ${adminError?.message || String(adminError)}` },
+        { status: 500 }
+      );
+    }
 
     // カードIDが指定されている場合、重複チェック
     if (card_id && card_id.trim() !== "") {
@@ -234,11 +247,14 @@ export async function POST(req: Request) {
       insertData.has_custom_access_time = false; // 新規登録時は属性設定を使用
     }
 
+    console.log("[Students API] Inserting student data:", insertData);
     let { data, error } = await supabase
       .from("students")
       .insert([insertData])
       .select("id,name,grade,status,class,role,card_id,last_event_type,last_event_timestamp,access_start_time,access_end_time,has_custom_access_time,created_at")
       .single();
+
+    console.log("[Students API] Insert result:", { data: data?.id, error: error?.message });
 
     // カラムが存在しない場合は、存在するカラムのみで再試行
     if (error && (error.message?.includes("column students.class does not exist") ||
@@ -246,6 +262,7 @@ export async function POST(req: Request) {
                   error.message?.includes("column students.card_id does not exist") ||
                   error.message?.includes("column students.last_event_type does not exist") ||
                   error.message?.includes("column students.access_start_time does not exist"))) {
+      console.log("[Students API] Retrying with fallback data");
       const insertDataFallback: any = {
         site_id: siteId,
         name,
@@ -282,10 +299,12 @@ export async function POST(req: Request) {
 
     if (error) {
       const errorMessage = error.message || String(error);
+      console.error("[Students API] Insert error:", errorMessage);
       return NextResponse.json({ ok: false, error: errorMessage }, { status: 500 });
     }
 
     if (!data) {
+      console.error("[Students API] No data returned from insert");
       return NextResponse.json({ ok: false, error: "データの取得に失敗しました" }, { status: 500 });
     }
 
@@ -295,9 +314,11 @@ export async function POST(req: Request) {
       id: String(data.id),
     };
 
+    console.log("[Students API] Student created successfully:", student.id);
     return NextResponse.json({ ok: true, student });
   } catch (e: any) {
     const errorMessage = e?.message || String(e) || "Unknown error";
+    console.error("[Students API] Unexpected error:", errorMessage);
     return NextResponse.json({ ok: false, error: errorMessage }, { status: 500 });
   }
 }

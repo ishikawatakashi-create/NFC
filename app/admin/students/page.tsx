@@ -77,17 +77,20 @@ export default function StudentsPage() {
   })
 
   async function loadStudents() {
+    console.log("[Students Page] Loading students...");
     setIsLoading(true)
     setError(null)
 
     try {
       const res = await fetch("/api/students", { cache: "no-store" })
       const data = await res.json()
+      console.log("[Students Page] Load students response:", { ok: data?.ok, count: data?.students?.length });
 
       if (!res.ok || !data?.ok) {
         const errorMessage = typeof data?.error === "string" 
           ? data.error 
           : data?.error?.message || String(data?.error) || "Failed to load students";
+        console.error("[Students Page] Load students error:", errorMessage);
         throw new Error(errorMessage);
       }
 
@@ -127,9 +130,11 @@ export default function StudentsPage() {
         notificationRecipients: [], // DB未実装なら空配列
       }))
 
+      console.log("[Students Page] Students loaded:", mapped.length);
       setStudents(mapped)
     } catch (e: any) {
       const errorMessage = e?.message || String(e) || "Unknown error";
+      console.error("[Students Page] Load students exception:", errorMessage);
       setError(errorMessage);
     } finally {
       setIsLoading(false)
@@ -233,6 +238,7 @@ export default function StudentsPage() {
     if (!newStudent.name.trim()) return
 
     try {
+      console.log("[Students Page] Adding student:", newStudent);
       const res = await fetch("/api/students", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -244,15 +250,34 @@ export default function StudentsPage() {
           card_id: newStudent.cardId.trim() || null,
         }),
       })
-      const data = await res.json()
 
-      if (!res.ok || !data?.ok) {
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error("[Students Page] API error response:", errorText);
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          errorData = { error: errorText || `HTTP ${res.status}: ${res.statusText}` };
+        }
+        const errorMessage = typeof errorData?.error === "string" 
+          ? errorData.error 
+          : errorData?.error?.message || String(errorData?.error) || `HTTP ${res.status}: ${res.statusText}`;
+        throw new Error(errorMessage);
+      }
+
+      const data = await res.json()
+      console.log("[Students Page] API response:", data);
+
+      if (!data?.ok) {
         const errorMessage = typeof data?.error === "string" 
           ? data.error 
           : data?.error?.message || String(data?.error) || "Failed to create student";
         throw new Error(errorMessage);
       }
 
+      console.log("[Students Page] Student added successfully, refreshing list...");
+      
       // ダイアログ閉じる
       setIsAddDialogOpen(false)
 
@@ -261,9 +286,11 @@ export default function StudentsPage() {
 
       // 一覧更新
       await loadStudents()
+      console.log("[Students Page] List refreshed after adding student");
     } catch (e: any) {
       const errorMessage = e?.message || String(e) || "Failed to create student";
-      alert(errorMessage);
+      console.error("[Students Page] Error adding student:", errorMessage);
+      alert(`エラー: ${errorMessage}`);
     }
   }
 
