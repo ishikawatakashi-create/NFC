@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 /**
  * LINE Messaging APIを使用してメッセージを送信する
@@ -62,10 +62,7 @@ export async function sendLineNotificationToParents(
   accessLogId: string,
   studentName: string
 ): Promise<{ success: boolean; sentCount: number; error?: string }> {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  const supabase = getSupabaseAdmin();
 
   const lineChannelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
 
@@ -259,10 +256,7 @@ export async function getParentLineAccount(
   } | null;
   error?: string;
 }> {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  const supabase = getSupabaseAdmin();
 
   try {
     const { data, error } = await supabase
