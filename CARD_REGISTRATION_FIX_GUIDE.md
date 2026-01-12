@@ -253,3 +253,5 @@ CREATE TABLE card_registration_logs (
 
 最終更新: 2026年1月7日
 
+
+

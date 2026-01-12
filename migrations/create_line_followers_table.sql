@@ -31,3 +31,5 @@ COMMENT ON COLUMN line_followers.is_active IS '友だち状態かどうか（tru
 COMMENT ON COLUMN line_followers.followed_at IS '友だち追加日時';
 COMMENT ON COLUMN line_followers.unfollowed_at IS '友だち解除日時';
 
+
+

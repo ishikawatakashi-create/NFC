@@ -96,3 +96,5 @@ https://oppositionary-proletarianly-kena.ngrok-free.dev/kiosk/entry
 
 
 
+
+

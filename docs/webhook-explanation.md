@@ -196,3 +196,5 @@ LINE Developers Consoleで：
 
 **最終更新**: 2025年1月
 
+
+

@@ -76,3 +76,5 @@ ORDER BY ordinal_position;
 -- 既存データの確認
 SELECT * FROM point_settings;
 
+
+

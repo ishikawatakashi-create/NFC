@@ -13,3 +13,5 @@ COMMENT ON COLUMN students.card_id IS 'NFCカードID（生徒に対応するNFC
 
 
 
+
+

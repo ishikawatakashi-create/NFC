@@ -22,3 +22,5 @@ WHERE exit_notification_template IS NULL;
 COMMENT ON COLUMN point_settings.entry_notification_template IS '入室通知のメッセージテンプレート（[生徒名]、[現在時刻]のタグが利用可能）';
 COMMENT ON COLUMN point_settings.exit_notification_template IS '退室通知のメッセージテンプレート（[生徒名]、[現在時刻]のタグが利用可能）';
 
+
+

@@ -38,3 +38,5 @@ COMMENT ON COLUMN students.status IS 'ステータス（active: 在籍, suspende
 
 
 
+
+

@@ -95,3 +95,5 @@ COMMENT ON COLUMN class_based_bonus_thresholds.bonus_threshold IS 'ボーナス�
 
 
 
+
+

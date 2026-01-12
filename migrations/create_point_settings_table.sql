@@ -22,3 +22,5 @@ COMMENT ON COLUMN point_settings.daily_limit IS '1日1回制限（trueの場合�
 
 
 
+
+

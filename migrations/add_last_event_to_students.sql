@@ -15,3 +15,5 @@ COMMENT ON COLUMN students.last_event_timestamp IS '最終イベント日時';
 
 
 
+
+

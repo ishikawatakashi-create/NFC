@@ -8,3 +8,5 @@ COMMENT ON COLUMN class_based_bonus_thresholds.bonus_points IS 'ボーナスポ�
 
 
 
+
+

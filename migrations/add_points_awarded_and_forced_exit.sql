@@ -28,3 +28,5 @@ COMMENT ON COLUMN access_logs.event_type IS 'イベント種別（entry: 入室,
 
 
 
+
+
