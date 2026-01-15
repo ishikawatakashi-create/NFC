@@ -101,8 +101,15 @@ export default function LoginPage() {
     try {
       const supabase = createBrowserSupabaseClient()
       
-      // 現在のURLを取得してリダイレクト先を設定
-      const redirectTo = `${window.location.origin}/admin/reset-password`
+      // 本番環境のURLを取得
+      // window.location.originを使用（Vercelでは自動的に正しいURLになる）
+      // フォールバックとして環境変数または固定URLを使用
+      const appUrl = 
+        (typeof window !== 'undefined' ? window.location.origin : null) ||
+        (typeof process !== 'undefined' ? process.env.NEXT_PUBLIC_APP_URL : null) ||
+        'https://nfctoukalab.vercel.app'
+      // コールバックルート経由でリセットページにリダイレクト
+      const redirectTo = `${appUrl}/auth/callback?next=/admin/reset-password`
       
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(resetEmail, {
         redirectTo: redirectTo,

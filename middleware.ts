@@ -17,9 +17,15 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/admin/login") || 
     pathname.startsWith("/admin/register") ||
     pathname.startsWith("/admin/reset-password");
+  const isAuthCallback = pathname.startsWith("/auth/callback");
   const isAdminPage = pathname.startsWith("/admin") && !isPublicAdminPage;
   const isLinksPage = pathname === "/links";
   
+  // 認証コールバックは認証チェックをスキップ
+  if (isAuthCallback) {
+    return response;
+  }
+
   // 管理画面またはリンク画面の認証チェック
   if (isAdminPage || isLinksPage) {
     const supabase = createServerClient(

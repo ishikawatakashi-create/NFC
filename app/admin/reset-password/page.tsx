@@ -91,64 +91,52 @@ function ResetPasswordContent() {
   }
 
   useEffect(() => {
-    async function verifyCode() {
-      const code = searchParams.get("code")
-      const type = searchParams.get("type")
-
-      if (!code) {
-        setError("無効なリセットリンクです。メール内のリンクをクリックしてアクセスしてください。")
+    async function checkSession() {
+      // コールバックルートでセッションが確立されているか確認
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+      
+      if (sessionError) {
+        console.error("[Password Reset] Session error:", sessionError)
+        setError("セッションの確認に失敗しました。リセットリンクから再度アクセスしてください。")
         setIsVerifyingCode(false)
         return
       }
 
-      try {
-        // 1. まずPKCEフローでセッションを取得
-        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
-        if (!exchangeError) {
-          setIsVerifyingCode(false)
-          return
-        }
-
-        // 2. PKCEのコード検証がない場合はOTP方式でフォールバック
-        if (exchangeError.message?.includes("PKCE code verifier not found") || exchangeError.message?.includes("code verifier")) {
-          // OTP方式で試行（codeをtokenとして使用）
-          const { error: verifyError } = await supabase.auth.verifyOtp({
-            type: "recovery",
-            token: code,
-          })
-
-          if (!verifyError) {
-            setIsVerifyingCode(false)
-            return
-          }
-
-          // token_hashでも試行
-          const { error: verifyError2 } = await supabase.auth.verifyOtp({
-            type: "recovery",
-            token_hash: code,
-          })
-
-          if (!verifyError2) {
-            setIsVerifyingCode(false)
-            return
-          }
-
-          setError("リセットリンクの確認に失敗しました。リンクが無効または期限切れの可能性があります。")
-          setIsVerifyingCode(false)
-          return
-        }
-
-        // その他のエラー
-        setError(exchangeError.message || "リセットリンクの確認に失敗しました")
+      if (session) {
+        console.log("[Password Reset] Session found, ready for password reset")
         setIsVerifyingCode(false)
-      } catch (err: any) {
-        console.error("Password reset verification error:", err)
-        setError(err?.message || "予期しないエラーが発生しました")
+        return
+      }
+
+      // セッションがない場合、URLパラメータからコードを取得して検証を試行
+      const code = searchParams.get("code")
+      if (code) {
+        console.log("[Password Reset] Code found in URL, attempting exchange...")
+        try {
+          const { data: exchangeData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+          
+          if (!exchangeError && exchangeData?.session) {
+            console.log("[Password Reset] Code exchange successful")
+            setIsVerifyingCode(false)
+            return
+          }
+
+          console.error("[Password Reset] Code exchange failed:", exchangeError)
+          setError(exchangeError?.message || "リセットリンクの確認に失敗しました")
+          setIsVerifyingCode(false)
+        } catch (err: any) {
+          console.error("[Password Reset] Exception:", err)
+          setError(err?.message || "予期しないエラーが発生しました")
+          setIsVerifyingCode(false)
+        }
+      } else {
+        // コードもセッションもない場合
+        setError("リセットリンクからアクセスしてください。")
         setIsVerifyingCode(false)
       }
     }
 
-    verifyCode()
+    checkSession()
   }, [searchParams, supabase])
 
   return (
