@@ -96,38 +96,56 @@ function ResetPasswordContent() {
       const type = searchParams.get("type")
 
       if (!code) {
-        setError("無効なリセットリンクです")
+        setError("無効なリセットリンクです。メール内のリンクをクリックしてアクセスしてください。")
         setIsVerifyingCode(false)
         return
       }
 
-      // 1. まずPKCEフローでセッションを取得
-      const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
-      if (!exchangeError) {
-        setIsVerifyingCode(false)
-        return
-      }
-
-      // 2. PKCEのコード検証がない場合はOTP方式でフォールバック
-      if (exchangeError.message?.includes("PKCE code verifier not found") && type === "recovery") {
-        const { error: verifyError } = await supabase.auth.verifyOtp({
-          type: "recovery",
-          token_hash: code,
-        })
-
-        if (!verifyError) {
+      try {
+        // 1. まずPKCEフローでセッションを取得
+        const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code)
+        if (!exchangeError) {
           setIsVerifyingCode(false)
           return
         }
 
-        setError(verifyError.message || "リセットリンクの確認に失敗しました")
-        setIsVerifyingCode(false)
-        return
-      }
+        // 2. PKCEのコード検証がない場合はOTP方式でフォールバック
+        if (exchangeError.message?.includes("PKCE code verifier not found") || exchangeError.message?.includes("code verifier")) {
+          // OTP方式で試行（codeをtokenとして使用）
+          const { error: verifyError } = await supabase.auth.verifyOtp({
+            type: "recovery",
+            token: code,
+          })
 
-      // その他のエラー
-      setError(exchangeError.message || "リセットリンクの確認に失敗しました")
-      setIsVerifyingCode(false)
+          if (!verifyError) {
+            setIsVerifyingCode(false)
+            return
+          }
+
+          // token_hashでも試行
+          const { error: verifyError2 } = await supabase.auth.verifyOtp({
+            type: "recovery",
+            token_hash: code,
+          })
+
+          if (!verifyError2) {
+            setIsVerifyingCode(false)
+            return
+          }
+
+          setError("リセットリンクの確認に失敗しました。リンクが無効または期限切れの可能性があります。")
+          setIsVerifyingCode(false)
+          return
+        }
+
+        // その他のエラー
+        setError(exchangeError.message || "リセットリンクの確認に失敗しました")
+        setIsVerifyingCode(false)
+      } catch (err: any) {
+        console.error("Password reset verification error:", err)
+        setError(err?.message || "予期しないエラーが発生しました")
+        setIsVerifyingCode(false)
+      }
     }
 
     verifyCode()
@@ -152,6 +170,19 @@ function ResetPasswordContent() {
                 3秒後にログインページにリダイレクトします。
               </AlertDescription>
             </Alert>
+          ) : isVerifyingCode ? (
+            <div className="space-y-4">
+              <div className="text-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
+                <p className="text-muted-foreground">リセットリンクを確認中...</p>
+              </div>
+              {error && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+            </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
               {error && (
