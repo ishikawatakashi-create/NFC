@@ -17,7 +17,7 @@ import {
   ArrowRight,
   Users,
   User,
-  Keypad,
+  Keyboard,
 } from "lucide-react";
 import QRCode from "qrcode";
 
@@ -402,7 +402,7 @@ export default function ParentLinkIPhonePage() {
                       variant="outline"
                       size="sm"
                     >
-                      <Keypad className="mr-2 h-4 w-4" />
+                      <Keyboard className="mr-2 h-4 w-4" />
                       カードIDを手動で入力
                     </Button>
                   </div>
