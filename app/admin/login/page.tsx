@@ -80,8 +80,8 @@ export default function LoginPage() {
       // セッションが確立されるまで少し待つ
       await new Promise((resolve) => setTimeout(resolve, 100))
 
-      // ログイン成功 - リンク画面にリダイレクト
-      window.location.href = "/links"
+      // ログイン成功 - 管理画面のリンク一覧にリダイレクト
+      window.location.href = "/admin/links"
     } catch (err: any) {
       setError(err?.message || "予期しないエラーが発生しました")
       setIsLoading(false)

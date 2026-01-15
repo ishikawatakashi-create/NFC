@@ -11,9 +11,9 @@ export default async function HomePage() {
   try {
     const admin = await getCurrentAdmin();
 
-    // 認証済みの場合はリンク画面へ
+    // 認証済みの場合は管理画面のリンク一覧へ
     if (admin) {
-      redirect("/links");
+      redirect("/admin/links");
     }
   } catch (error) {
     // エラーが発生した場合はログインページへリダイレクト

@@ -19,15 +19,14 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/admin/reset-password");
   const isAuthCallback = pathname.startsWith("/auth/callback");
   const isAdminPage = pathname.startsWith("/admin") && !isPublicAdminPage;
-  const isLinksPage = pathname === "/links";
   
   // 認証コールバックは認証チェックをスキップ
   if (isAuthCallback) {
     return response;
   }
 
-  // 管理画面またはリンク画面の認証チェック
-  if (isAdminPage || isLinksPage) {
+  // 管理画面の認証チェック
+  if (isAdminPage) {
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
