@@ -11,9 +11,9 @@ export default async function HomePage() {
   try {
     const admin = await getCurrentAdmin();
 
-    // 認証済みの場合は管理画面の生徒管理ページへ
+    // 認証済みの場合はリンク画面へ
     if (admin) {
-      redirect("/admin/students");
+      redirect("/links");
     }
   } catch (error) {
     // エラーが発生した場合はログインページへリダイレクト

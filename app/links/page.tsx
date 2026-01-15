@@ -2,7 +2,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { ExternalLink, LogIn, LogOut, Users, Clock, Settings, TestTube, Home, Coins, UserPlus } from "lucide-react"
+import { ExternalLink, LogIn, LogOut, Users, Clock, Settings, TestTube, Home, Coins, UserPlus, Shield } from "lucide-react"
 import Link from "next/link"
 
 export default function QuickLinksPage() {
@@ -32,20 +32,6 @@ export default function QuickLinksPage() {
       category: "👨‍💼 管理画面",
       items: [
         {
-          name: "管理者ログイン",
-          path: "/admin/login",
-          icon: LogIn,
-          color: "bg-indigo-50 hover:bg-indigo-100",
-          description: "管理者アカウントでログイン"
-        },
-        {
-          name: "管理者登録",
-          path: "/admin/register",
-          icon: UserPlus,
-          color: "bg-indigo-50 hover:bg-indigo-100",
-          description: "初回管理者アカウントの作成"
-        },
-        {
           name: "生徒管理",
           path: "/admin/students",
           icon: Users,
@@ -65,6 +51,13 @@ export default function QuickLinksPage() {
           icon: Coins,
           color: "bg-yellow-50 hover:bg-yellow-100",
           description: "ポイント設定、ランキング、一括付与、ボーナス設定"
+        },
+        {
+          name: "管理ユーザー管理",
+          path: "/admin/admins",
+          icon: Shield,
+          color: "bg-indigo-50 hover:bg-indigo-100",
+          description: "管理ユーザーの追加・編集・削除"
         },
         {
           name: "設定",
@@ -131,7 +124,7 @@ export default function QuickLinksPage() {
               クイックリンク集
             </CardTitle>
             <CardDescription>
-              システム内の主要ページへのリンク集です
+              システム内の主要ページへのリンク集です（管理者専用）
             </CardDescription>
           </CardHeader>
         </Card>

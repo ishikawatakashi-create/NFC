@@ -7,8 +7,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { createBrowserSupabaseClient } from "@/lib/supabase-client-auth"
-import { AlertCircle, Loader2 } from "lucide-react"
+import { AlertCircle, Loader2, Key } from "lucide-react"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -16,22 +17,11 @@ export default function LoginPage() {
   const [password, setPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-
-  const validatePassword = (pwd: string): string | null => {
-    if (pwd.length < 8) {
-      return "パスワードは8文字以上である必要があります"
-    }
-    if (!/[a-z]/.test(pwd)) {
-      return "パスワードに小文字を含める必要があります"
-    }
-    if (!/[A-Z]/.test(pwd)) {
-      return "パスワードに大文字を含める必要があります"
-    }
-    if (!/[0-9]/.test(pwd)) {
-      return "パスワードに数字を含める必要があります"
-    }
-    return null
-  }
+  const [isPasswordResetDialogOpen, setIsPasswordResetDialogOpen] = useState(false)
+  const [resetEmail, setResetEmail] = useState("")
+  const [isResettingPassword, setIsResettingPassword] = useState(false)
+  const [resetError, setResetError] = useState<string | null>(null)
+  const [resetSuccess, setResetSuccess] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -47,13 +37,6 @@ export default function LoginPage() {
 
     if (!password) {
       setError("パスワードを入力してください")
-      setIsLoading(false)
-      return
-    }
-
-    const passwordError = validatePassword(password)
-    if (passwordError) {
-      setError(passwordError)
       setIsLoading(false)
       return
     }
@@ -97,12 +80,53 @@ export default function LoginPage() {
       // セッションが確立されるまで少し待つ
       await new Promise((resolve) => setTimeout(resolve, 100))
 
-      // ログイン成功 - 管理画面にリダイレクト
-      window.location.href = "/admin/students"
+      // ログイン成功 - リンク画面にリダイレクト
+      window.location.href = "/links"
     } catch (err: any) {
       setError(err?.message || "予期しないエラーが発生しました")
       setIsLoading(false)
     }
+  }
+
+  const handlePasswordReset = async () => {
+    if (!resetEmail) {
+      setResetError("メールアドレスを入力してください")
+      return
+    }
+
+    setIsResettingPassword(true)
+    setResetError(null)
+    setResetSuccess(false)
+
+    try {
+      const supabase = createBrowserSupabaseClient()
+      
+      // 現在のURLを取得してリダイレクト先を設定
+      const redirectTo = `${window.location.origin}/admin/reset-password`
+      
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+        redirectTo: redirectTo,
+      })
+
+      if (resetError) {
+        setResetError(resetError.message || "パスワードリセットメールの送信に失敗しました")
+        setIsResettingPassword(false)
+        return
+      }
+
+      setResetSuccess(true)
+      setIsResettingPassword(false)
+    } catch (err: any) {
+      setResetError(err?.message || "予期しないエラーが発生しました")
+      setIsResettingPassword(false)
+    }
+  }
+
+  const handleOpenPasswordResetDialog = () => {
+    setResetEmail(email) // ログイン画面で入力したメールアドレスを初期値に
+    setResetError(null)
+    setResetSuccess(false)
+    setIsPasswordResetDialogOpen(true)
   }
 
   return (
@@ -162,9 +186,95 @@ export default function LoginPage() {
                 "ログイン"
               )}
             </Button>
+
+            <div className="text-center">
+              <Button
+                type="button"
+                variant="link"
+                className="text-sm text-muted-foreground"
+                onClick={handleOpenPasswordResetDialog}
+                disabled={isLoading}
+              >
+                <Key className="mr-2 h-4 w-4" />
+                パスワードを忘れた場合
+              </Button>
+            </div>
           </form>
         </CardContent>
       </Card>
+
+      {/* パスワードリセットダイアログ */}
+      <Dialog open={isPasswordResetDialogOpen} onOpenChange={setIsPasswordResetDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>パスワード再設定</DialogTitle>
+            <DialogDescription>
+              登録されているメールアドレスを入力してください。
+              <br />
+              パスワードリセット用のリンクをメールでお送りします。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {resetSuccess ? (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  パスワードリセット用のメールを送信しました。
+                  <br />
+                  メール内のリンクをクリックして、新しいパスワードを設定してください。
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <>
+                {resetError && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>{resetError}</AlertDescription>
+                  </Alert>
+                )}
+                <div className="space-y-2">
+                  <Label htmlFor="reset-email">メールアドレス</Label>
+                  <Input
+                    id="reset-email"
+                    type="email"
+                    placeholder="admin@example.com"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    disabled={isResettingPassword}
+                  />
+                </div>
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            {resetSuccess ? (
+              <Button onClick={() => setIsPasswordResetDialogOpen(false)}>
+                閉じる
+              </Button>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsPasswordResetDialogOpen(false)}
+                  disabled={isResettingPassword}
+                >
+                  キャンセル
+                </Button>
+                <Button onClick={handlePasswordReset} disabled={isResettingPassword}>
+                  {isResettingPassword ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      送信中...
+                    </>
+                  ) : (
+                    "送信"
+                  )}
+                </Button>
+              </>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

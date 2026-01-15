@@ -12,9 +12,16 @@ export async function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
   response.headers.set("x-pathname", pathname);
 
-  // 管理画面の認証チェック（ログインページと登録ページを除く）
-  const isPublicAdminPage = pathname.startsWith("/admin/login") || pathname.startsWith("/admin/register");
-  if (pathname.startsWith("/admin") && !isPublicAdminPage) {
+  // 管理画面の認証チェック（ログインページ、登録ページ、パスワードリセットページを除く）
+  const isPublicAdminPage = 
+    pathname.startsWith("/admin/login") || 
+    pathname.startsWith("/admin/register") ||
+    pathname.startsWith("/admin/reset-password");
+  const isAdminPage = pathname.startsWith("/admin") && !isPublicAdminPage;
+  const isLinksPage = pathname === "/links";
+  
+  // 管理画面またはリンク画面の認証チェック
+  if (isAdminPage || isLinksPage) {
     const supabase = createServerClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,

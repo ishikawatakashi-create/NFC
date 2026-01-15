@@ -7,7 +7,7 @@ import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { Menu, X, Users, ClipboardList, Settings, LogOut, ChevronRight, Coins, UserCheck } from "lucide-react"
+import { Menu, X, Users, ClipboardList, Settings, LogOut, ChevronRight, Coins, UserCheck, Shield } from "lucide-react"
 import { createBrowserSupabaseClient } from "@/lib/supabase-client-auth"
 
 interface MenuItem {
@@ -21,6 +21,7 @@ const menuItems: MenuItem[] = [
   { label: "親御さん管理", href: "/admin/parents", icon: UserCheck },
   { label: "入退室ログ", href: "/admin/access-logs", icon: ClipboardList },
   { label: "ポイント管理", href: "/admin/points", icon: Coins },
+  { label: "管理ユーザー管理", href: "/admin/admins", icon: Shield },
   { label: "設定", href: "/admin/settings", icon: Settings },
 ]
 
