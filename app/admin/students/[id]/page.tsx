@@ -598,6 +598,10 @@ export default function StudentDetailPage({
                 </div>
               </div>
               <div>
+                <label className="text-sm font-medium text-muted-foreground">ユーザーID (UUID)</label>
+                <p className="text-base mt-1 font-mono text-sm break-all">{student.id}</p>
+              </div>
+              <div>
                 <label className="text-sm font-medium text-muted-foreground">属性</label>
                 <div className="mt-1">
                   <Badge variant="outline">{getRoleLabel(student.role)}</Badge>

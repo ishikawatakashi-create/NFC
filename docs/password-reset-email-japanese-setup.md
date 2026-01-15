@@ -130,6 +130,38 @@ Supabaseのメールテンプレートでは、以下の変数が使用できま
 
 ---
 
+## 🔗 リダイレクトURLの設定
+
+パスワードリセットメールのリンクが正しく動作するように、SupabaseでリダイレクトURLを設定する必要があります。
+
+### Supabaseダッシュボードでの設定
+
+1. **Authentication** → **URL Configuration** を開く
+2. **Redirect URLs** セクションで、以下のURLを追加：
+   ```
+   https://nfctoukalab.vercel.app/admin/reset-password
+   ```
+3. ローカル開発環境を使用する場合：
+   ```
+   http://localhost:3001/admin/reset-password
+   ```
+4. 「Save」をクリック
+
+### 環境変数の設定（推奨）
+
+Vercelの環境変数に `NEXT_PUBLIC_APP_URL` を設定することで、本番環境のURLを明示的に指定できます：
+
+1. Vercelダッシュボード → プロジェクト → **Settings** → **Environment Variables**
+2. 以下の環境変数を追加：
+   - **Name**: `NEXT_PUBLIC_APP_URL`
+   - **Value**: `https://nfctoukalab.vercel.app`
+   - **Environment**: Production（本番環境のみ）
+3. 環境変数を追加した後、**再デプロイ**が必要です
+
+**注意**: 環境変数を設定しない場合、コードは自動的に現在のドメイン（`window.location.origin`）を使用します。Vercelでは正しく動作しますが、明示的に設定することを推奨します。
+
+---
+
 ## 🔄 他のメールテンプレートも日本語化する場合
 
 以下のテンプレートも必要に応じて日本語化できます：
