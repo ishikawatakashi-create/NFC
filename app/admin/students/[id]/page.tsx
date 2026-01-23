@@ -1,17 +1,18 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { AdminLayout } from "@/components/admin/admin-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Pencil, ArrowLeft, Loader2, Clock, Coins, Plus, Minus, History } from "lucide-react"
+import { Pencil, ArrowLeft, Loader2, Clock, Coins, Plus, Minus, History, Download, Search } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 
 type StudentStatus = "active" | "suspended" | "withdrawn" | "graduated"
@@ -44,6 +45,7 @@ interface PointTransaction {
   points: number
   description?: string | null
   createdAt: string
+  adminName?: string | null
 }
 
 interface AccessLog {
@@ -79,6 +81,15 @@ export default function StudentDetailPage({
   const [addPointsDescription, setAddPointsDescription] = useState("")
   const [consumePointsAmount, setConsumePointsAmount] = useState("")
   const [consumePointsDescription, setConsumePointsDescription] = useState("")
+  const [isAddingPoints, setIsAddingPoints] = useState(false)
+  const [isConsumingPoints, setIsConsumingPoints] = useState(false)
+  // 履歴ダイアログの状態
+  const [historySearchQuery, setHistorySearchQuery] = useState("")
+  const [historyTransactionType, setHistoryTransactionType] = useState<string>("all")
+  const [historyOffset, setHistoryOffset] = useState(0)
+  const [historyHasMore, setHistoryHasMore] = useState(false)
+  const [historyTotal, setHistoryTotal] = useState(0)
+  const [isLoadingMoreHistory, setIsLoadingMoreHistory] = useState(false)
 
   useEffect(() => {
     async function getParams() {
@@ -195,40 +206,113 @@ export default function StudentDetailPage({
     loadAccessLogs()
   }, [studentId])
 
-  useEffect(() => {
+  // 履歴を読み込む関数（ページネーション対応）
+  const loadPointTransactions = useCallback(async (reset: boolean = false) => {
     if (!studentId) return
 
-    async function loadPointTransactions() {
+    if (reset) {
       setIsPointsLoading(true)
-      try {
-        const res = await fetch(`/api/points/history?studentId=${encodeURIComponent(studentId)}`, { cache: "no-store" })
-        const data = await res.json()
-
-        if (res.ok && data?.ok && data?.transactions) {
-          const mapped: PointTransaction[] = data.transactions.map((transaction: any) => ({
-            id: transaction.id,
-            transactionType: transaction.transactionType,
-            points: transaction.points,
-            description: transaction.description || null,
-            createdAt: formatDateTime(transaction.createdAt),
-          }))
-          setPointTransactions(mapped)
-        }
-      } catch (e: any) {
-        console.error("Failed to load point transactions:", e)
-      } finally {
-        setIsPointsLoading(false)
-      }
+      setHistoryOffset(0)
+    } else {
+      setIsLoadingMoreHistory(true)
     }
 
-    loadPointTransactions()
-  }, [studentId])
+    try {
+      const params = new URLSearchParams({
+        studentId: studentId,
+        limit: "50",
+        offset: reset ? "0" : historyOffset.toString(),
+      })
+
+      if (historySearchQuery.trim()) {
+        params.append("search", historySearchQuery.trim())
+      }
+      if (historyTransactionType && historyTransactionType !== "all") {
+        params.append("type", historyTransactionType)
+      }
+
+      const res = await fetch(`/api/points/history?${params.toString()}`, { cache: "no-store" })
+      const data = await res.json()
+
+      if (res.ok && data?.ok && data?.transactions) {
+        const mapped: PointTransaction[] = data.transactions.map((transaction: any) => ({
+          id: transaction.id,
+          transactionType: transaction.transactionType,
+          points: transaction.points,
+          description: transaction.description || null,
+          createdAt: formatDateTime(transaction.createdAt),
+          adminName: transaction.adminName || null,
+        }))
+
+        if (reset) {
+          setPointTransactions(mapped)
+        } else {
+          setPointTransactions((prev) => [...prev, ...mapped])
+        }
+
+        // ページネーション情報を更新
+        if (data.pagination) {
+          setHistoryHasMore(data.pagination.hasMore || false)
+          setHistoryTotal(data.pagination.total || 0)
+          if (!reset) {
+            setHistoryOffset((prev) => prev + mapped.length)
+          } else {
+            setHistoryOffset(mapped.length)
+          }
+        }
+      }
+    } catch (e: any) {
+      console.error("Failed to load point transactions:", e)
+      toast({
+        title: "エラー",
+        description: "履歴の読み込みに失敗しました",
+        variant: "destructive",
+      })
+    } finally {
+      setIsPointsLoading(false)
+      setIsLoadingMoreHistory(false)
+    }
+  }, [studentId, historySearchQuery, historyTransactionType, historyOffset, toast])
+
+  // 履歴ダイアログが開かれたときに履歴を読み込む
+  useEffect(() => {
+    if (pointsHistoryDialogOpen && studentId) {
+      setHistorySearchQuery("")
+      setHistoryTransactionType("all")
+      loadPointTransactions(true)
+    }
+  }, [pointsHistoryDialogOpen, studentId, loadPointTransactions])
+
+  // 検索・フィルタ変更時に履歴を再読み込み
+  const handleHistorySearch = () => {
+    loadPointTransactions(true)
+  }
+
+  const handleHistoryTypeChange = (type: string) => {
+    setHistoryTransactionType(type)
+    setHistoryOffset(0)
+    // 少し遅延させてから読み込み（状態更新を待つ）
+    setTimeout(() => {
+      loadPointTransactions(true)
+    }, 0)
+  }
 
   async function handleAddPoints() {
-    if (!studentId) return
+    console.log("[Add Points] Button clicked", { studentId, addPointsAmount })
+    
+    if (!studentId) {
+      console.error("[Add Points] studentId is missing")
+      toast({
+        title: "エラー",
+        description: "生徒IDが取得できませんでした",
+        variant: "destructive",
+      })
+      return
+    }
 
     const points = parseInt(addPointsAmount, 10)
     if (isNaN(points) || points <= 0) {
+      console.error("[Add Points] Invalid points value", addPointsAmount)
       toast({
         title: "エラー",
         description: "ポイント数は1以上の数値である必要があります",
@@ -237,7 +321,10 @@ export default function StudentDetailPage({
       return
     }
 
+    console.log("[Add Points] Starting request", { studentId, points, description: addPointsDescription })
+    setIsAddingPoints(true)
     try {
+      console.log("[Add Points] Sending request to /api/points/add")
       const res = await fetch("/api/points/add", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -248,12 +335,31 @@ export default function StudentDetailPage({
         }),
       })
 
-      const data = await res.json()
+      console.log("[Add Points] Response status:", res.status, res.statusText)
 
-      if (!res.ok || !data?.ok) {
-        throw new Error(data?.error || "ポイントの追加に失敗しました")
+      let data: any = {}
+      try {
+        data = await res.json()
+        console.log("[Add Points] Response data:", data)
+      } catch (parseError) {
+        console.error("[Add Points] Failed to parse JSON response:", parseError)
+        const text = await res.text()
+        console.error("[Add Points] Response text:", text)
+        throw new Error(`サーバーからの応答の解析に失敗しました（${res.status}）`)
       }
 
+      if (!res.ok || !data?.ok) {
+        console.error("[Add Points] API error:", {
+          status: res.status,
+          statusText: res.statusText,
+          statusCode: res.status,
+          data,
+          error: data?.error,
+        })
+        throw new Error(data?.error || `ポイントの追加に失敗しました（${res.status}）`)
+      }
+
+      console.log("[Add Points] Success!")
       toast({
         title: "成功",
         description: `${points}ポイントを追加しました`,
@@ -274,23 +380,43 @@ export default function StudentDetailPage({
         })
       }
 
-      // ポイント履歴を再読み込み
-      const historyRes = await fetch(`/api/points/history?studentId=${encodeURIComponent(studentId)}`, { cache: "no-store" })
-      const historyData = await historyRes.json()
-      if (historyRes.ok && historyData?.ok && historyData?.transactions) {
-        const mapped: PointTransaction[] = historyData.transactions.map((transaction: any) => ({
-          id: transaction.id,
-          transactionType: transaction.transactionType,
-          points: transaction.points,
-          description: transaction.description || null,
-          createdAt: formatDateTime(transaction.createdAt),
-        }))
-        setPointTransactions(mapped)
+      // ポイント履歴を再読み込み（ダイアログが開いている場合のみ）
+      if (pointsHistoryDialogOpen) {
+        loadPointTransactions(true)
       }
     } catch (e: any) {
+      console.error("[Add Points] Exception:", e)
+      console.error("[Add Points] Error details:", {
+        message: e?.message,
+        stack: e?.stack,
+        name: e?.name,
+      })
       toast({
         title: "エラー",
         description: e?.message || "ポイントの追加に失敗しました",
+        variant: "destructive",
+      })
+    } finally {
+      setIsAddingPoints(false)
+      console.log("[Add Points] Finished")
+    }
+  }
+
+  async function handleExportStudentHistory() {
+    if (!studentId) return
+
+    try {
+      const params = new URLSearchParams({
+        studentId: studentId,
+        type: "all",
+      })
+
+      const url = `/api/points/export?${params.toString()}`
+      window.open(url, "_blank")
+    } catch (e: any) {
+      toast({
+        title: "エラー",
+        description: "エクスポートに失敗しました",
         variant: "destructive",
       })
     }
@@ -309,6 +435,7 @@ export default function StudentDetailPage({
       return
     }
 
+    setIsConsumingPoints(true)
     try {
       const res = await fetch("/api/points/consume", {
         method: "POST",
@@ -320,10 +447,25 @@ export default function StudentDetailPage({
         }),
       })
 
-      const data = await res.json()
+      let data: any = {}
+      try {
+        data = await res.json()
+      } catch (parseError) {
+        console.error("Failed to parse JSON response:", parseError)
+        const text = await res.text()
+        console.error("Response text:", text)
+        throw new Error(`サーバーからの応答の解析に失敗しました（${res.status}）`)
+      }
 
       if (!res.ok || !data?.ok) {
-        throw new Error(data?.error || "ポイントの消費に失敗しました")
+        console.error("Consume points API error:", {
+          status: res.status,
+          statusText: res.statusText,
+          statusCode: res.status,
+          data,
+          error: data?.error,
+        })
+        throw new Error(data?.error || `ポイントの消費に失敗しました（${res.status}）`)
       }
 
       toast({
@@ -346,25 +488,19 @@ export default function StudentDetailPage({
         })
       }
 
-      // ポイント履歴を再読み込み
-      const historyRes = await fetch(`/api/points/history?studentId=${encodeURIComponent(studentId)}`, { cache: "no-store" })
-      const historyData = await historyRes.json()
-      if (historyRes.ok && historyData?.ok && historyData?.transactions) {
-        const mapped: PointTransaction[] = historyData.transactions.map((transaction: any) => ({
-          id: transaction.id,
-          transactionType: transaction.transactionType,
-          points: transaction.points,
-          description: transaction.description || null,
-          createdAt: formatDateTime(transaction.createdAt),
-        }))
-        setPointTransactions(mapped)
+      // ポイント履歴を再読み込み（ダイアログが開いている場合のみ）
+      if (pointsHistoryDialogOpen) {
+        loadPointTransactions(true)
       }
     } catch (e: any) {
+      console.error("Consume points error:", e)
       toast({
         title: "エラー",
         description: e?.message || "ポイントの消費に失敗しました",
         variant: "destructive",
       })
+    } finally {
+      setIsConsumingPoints(false)
     }
   }
 
@@ -721,6 +857,15 @@ export default function StudentDetailPage({
                     <History className="h-4 w-4" />
                     履歴
                   </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    onClick={handleExportStudentHistory}
+                  >
+                    <Download className="h-4 w-4" />
+                    エクスポート
+                  </Button>
                 </div>
               </div>
             </CardContent>
@@ -793,13 +938,14 @@ export default function StudentDetailPage({
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="add-points-amount">ポイント数</Label>
-                <Input
+                  <Input
                   id="add-points-amount"
                   type="number"
                   min="1"
                   value={addPointsAmount}
                   onChange={(e) => setAddPointsAmount(e.target.value)}
                   placeholder="追加するポイント数を入力"
+                  disabled={isAddingPoints}
                 />
               </div>
               <div className="space-y-2">
@@ -810,14 +956,17 @@ export default function StudentDetailPage({
                   onChange={(e) => setAddPointsDescription(e.target.value)}
                   placeholder="ポイント追加の理由など"
                   rows={3}
+                  disabled={isAddingPoints}
                 />
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setAddPointsDialogOpen(false)}>
+              <Button variant="outline" onClick={() => setAddPointsDialogOpen(false)} disabled={isAddingPoints}>
                 キャンセル
               </Button>
-              <Button onClick={handleAddPoints}>追加</Button>
+              <Button onClick={handleAddPoints} disabled={isAddingPoints}>
+                {isAddingPoints ? "追加中..." : "追加"}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
@@ -838,6 +987,7 @@ export default function StudentDetailPage({
                   value={consumePointsAmount}
                   onChange={(e) => setConsumePointsAmount(e.target.value)}
                   placeholder="消費するポイント数を入力"
+                  disabled={isConsumingPoints}
                 />
                 <p className="text-sm text-muted-foreground">
                   現在のポイント: {student?.current_points ?? 0} pt
@@ -851,6 +1001,7 @@ export default function StudentDetailPage({
                   onChange={(e) => setConsumePointsDescription(e.target.value)}
                   placeholder="ポイント消費の理由など"
                   rows={3}
+                  disabled={isConsumingPoints}
                 />
               </div>
             </div>
@@ -865,11 +1016,54 @@ export default function StudentDetailPage({
 
         {/* ポイント履歴ダイアログ */}
         <Dialog open={pointsHistoryDialogOpen} onOpenChange={setPointsHistoryDialogOpen}>
-          <DialogContent className="max-w-3xl">
+          <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
             <DialogHeader>
               <DialogTitle>ポイント履歴</DialogTitle>
             </DialogHeader>
-            <div className="max-h-[60vh] overflow-y-auto">
+            
+            {/* 検索・フィルタ */}
+            <div className="space-y-4 pb-4 border-b">
+              <div className="flex gap-2">
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="説明で検索..."
+                    value={historySearchQuery}
+                    onChange={(e) => setHistorySearchQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        handleHistorySearch()
+                      }
+                    }}
+                    className="pl-9"
+                  />
+                </div>
+                <Select value={historyTransactionType} onValueChange={handleHistoryTypeChange}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="種別でフィルタ" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">すべて</SelectItem>
+                    <SelectItem value="entry">入室</SelectItem>
+                    <SelectItem value="bonus">ボーナス</SelectItem>
+                    <SelectItem value="admin_add">管理追加</SelectItem>
+                    <SelectItem value="admin_subtract">管理減算</SelectItem>
+                    <SelectItem value="consumption">消費</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button onClick={handleHistorySearch} variant="outline" size="default">
+                  検索
+                </Button>
+              </div>
+              {historyTotal > 0 && (
+                <p className="text-sm text-muted-foreground">
+                  全{historyTotal}件中 {pointTransactions.length}件を表示
+                </p>
+              )}
+            </div>
+
+            {/* 履歴テーブル */}
+            <div className="flex-1 overflow-y-auto min-h-0">
               {isPointsLoading ? (
                 <div className="text-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mx-auto" />
@@ -879,32 +1073,63 @@ export default function StudentDetailPage({
                   ポイント履歴がありません
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>日時</TableHead>
-                      <TableHead>種別</TableHead>
-                      <TableHead className="text-right">ポイント</TableHead>
-                      <TableHead>説明</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {pointTransactions.map((transaction) => (
-                      <TableRow key={transaction.id}>
-                        <TableCell>{transaction.createdAt}</TableCell>
-                        <TableCell>{getTransactionTypeLabel(transaction.transactionType)}</TableCell>
-                        <TableCell className={`text-right font-semibold ${transaction.points > 0 ? "text-green-600" : "text-red-600"}`}>
-                          {transaction.points > 0 ? "+" : ""}{transaction.points} pt
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          {transaction.description || "-"}
-                        </TableCell>
+                <>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>日時</TableHead>
+                        <TableHead>種別</TableHead>
+                        <TableHead className="text-right">ポイント</TableHead>
+                        <TableHead>説明</TableHead>
+                        <TableHead>操作者</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {pointTransactions.map((transaction: any) => (
+                        <TableRow key={transaction.id}>
+                          <TableCell>{transaction.createdAt}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline">
+                              {getTransactionTypeLabel(transaction.transactionType)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className={`text-right font-semibold ${transaction.points > 0 ? "text-green-600" : "text-red-600"}`}>
+                            {transaction.points > 0 ? "+" : ""}{transaction.points} pt
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate" title={transaction.description || ""}>
+                            {transaction.description || "-"}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            {transaction.adminName || "-"}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  
+                  {/* もっと見るボタン */}
+                  {historyHasMore && (
+                    <div className="flex justify-center py-4">
+                      <Button
+                        variant="outline"
+                        onClick={() => loadPointTransactions(false)}
+                        disabled={isLoadingMoreHistory}
+                      >
+                        {isLoadingMoreHistory ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            読み込み中...
+                          </>
+                        ) : (
+                          "もっと見る"
+                        )}
+                      </Button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
+            
             <DialogFooter>
               <Button variant="outline" onClick={() => setPointsHistoryDialogOpen(false)}>
                 閉じる

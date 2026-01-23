@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import crypto from "crypto";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 /**
@@ -7,7 +8,44 @@ import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
  */
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    const channelSecret = process.env.LINE_CHANNEL_SECRET;
+    if (!channelSecret) {
+      return NextResponse.json(
+        { ok: false, error: "LINE_CHANNEL_SECRET が設定されていません" },
+        { status: 500 }
+      );
+    }
+
+    const signature = req.headers.get("x-line-signature");
+    const rawBody = await req.text();
+    if (!signature) {
+      return NextResponse.json(
+        { ok: false, error: "署名がありません" },
+        { status: 401 }
+      );
+    }
+
+    const expectedSignature = crypto
+      .createHmac("sha256", channelSecret)
+      .update(rawBody)
+      .digest("base64");
+
+    if (signature !== expectedSignature) {
+      return NextResponse.json(
+        { ok: false, error: "署名検証に失敗しました" },
+        { status: 401 }
+      );
+    }
+
+    let body: any;
+    try {
+      body = JSON.parse(rawBody);
+    } catch {
+      return NextResponse.json(
+        { ok: false, error: "無効なリクエストです" },
+        { status: 400 }
+      );
+    }
     const events = body.events || [];
 
     const siteId = process.env.SITE_ID;
@@ -309,7 +347,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: errorMessage }, { status: 500 });
   }
 }
-
 
 
 

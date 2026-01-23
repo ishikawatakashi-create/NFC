@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { consumePoints } from "@/lib/point-utils";
+import { requireAdminApi } from "@/lib/auth-helpers";
 
-// ポイント消費
+// ポイント消費（管理者による減算）
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -20,6 +21,11 @@ export async function POST(req: Request) {
       );
     }
 
+    const { admin, response } = await requireAdminApi();
+    if (!admin) {
+      return response;
+    }
+
     if (!studentId) {
       return NextResponse.json({ ok: false, error: "studentId は必須です" }, { status: 400 });
     }
@@ -31,10 +37,14 @@ export async function POST(req: Request) {
       );
     }
 
-    const result = await consumePoints(siteId, studentId, points, description);
+    const result = await consumePoints(siteId, studentId, points, description, admin.id);
 
     if (!result.success) {
-      return NextResponse.json({ ok: false, error: result.error }, { status: 400 });
+      console.error(`[Points API] Failed to consume points for student ${studentId}:`, result.error);
+      return NextResponse.json(
+        { ok: false, error: result.error || "ポイントの消費に失敗しました。データベースのログを確認してください。" },
+        { status: 400 }
+      );
     }
 
     return NextResponse.json({

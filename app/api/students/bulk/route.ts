@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { requireAdminApi } from "@/lib/auth-helpers";
 import { getRoleBasedAccessTime } from "@/lib/access-time-utils";
 
 function getSupabase() {
@@ -31,6 +32,11 @@ export async function POST(req: Request) {
         { ok: false, error: "SITE_ID が .env.local に設定されていません" },
         { status: 500 }
       );
+    }
+
+    const { admin, response } = await requireAdminApi();
+    if (!admin) {
+      return response;
     }
 
     if (!students || !Array.isArray(students) || students.length === 0) {

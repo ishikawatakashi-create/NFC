@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireAdminApi } from "@/lib/auth-helpers";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { randomBytes } from "crypto";
 
@@ -28,6 +29,11 @@ export async function POST(req: Request) {
         { ok: false, error: "SITE_ID が設定されていません" },
         { status: 500 }
       );
+    }
+
+    const { admin, response } = await requireAdminApi();
+    if (!admin) {
+      return response;
     }
 
     const supabase = getSupabaseAdmin();

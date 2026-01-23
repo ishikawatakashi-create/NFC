@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { addPoints } from "@/lib/point-utils";
+import { requireAdminApi } from "@/lib/auth-helpers";
 
 // 管理画面からのポイント追加
 export async function POST(req: Request) {
@@ -20,6 +21,11 @@ export async function POST(req: Request) {
       );
     }
 
+    const { admin, response } = await requireAdminApi();
+    if (!admin) {
+      return response;
+    }
+
     if (!studentId) {
       return NextResponse.json({ ok: false, error: "studentId は必須です" }, { status: 400 });
     }
@@ -31,17 +37,29 @@ export async function POST(req: Request) {
       );
     }
 
+    // ポイント数の上限チェック（10000pt）
+    const MAX_POINTS_PER_TRANSACTION = 10000;
+    if (points > MAX_POINTS_PER_TRANSACTION) {
+      return NextResponse.json(
+        { ok: false, error: `ポイント数は${MAX_POINTS_PER_TRANSACTION}以下である必要があります` },
+        { status: 400 }
+      );
+    }
+
     const success = await addPoints(
       siteId,
       studentId,
       points,
       "admin_add",
-      description || "管理画面からのポイント追加"
+      description || "管理画面からのポイント追加",
+      undefined,
+      admin.id
     );
 
     if (!success) {
+      console.error(`[Points API] Failed to add points for student ${studentId}`);
       return NextResponse.json(
-        { ok: false, error: "ポイントの追加に失敗しました" },
+        { ok: false, error: "ポイントの追加に失敗しました。データベースのログを確認してください。" },
         { status: 500 }
       );
     }

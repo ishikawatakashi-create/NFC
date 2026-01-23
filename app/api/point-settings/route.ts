@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { requireAdminApi } from "@/lib/auth-helpers";
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  // サービスロールキーを使用してRLSをバイパス
+  return getSupabaseAdmin();
 }
 
 // ポイント設定を取得
@@ -18,6 +17,11 @@ export async function GET(req: Request) {
         { ok: false, error: "SITE_ID が .env.local に設定されていません" },
         { status: 500 }
       );
+    }
+
+    const { admin, response } = await requireAdminApi();
+    if (!admin) {
+      return response;
     }
 
     const supabase = getSupabase();
@@ -68,6 +72,11 @@ export async function PUT(req: Request) {
       );
     }
 
+    const { admin, response } = await requireAdminApi();
+    if (!admin) {
+      return response;
+    }
+
     if (entryPoints === undefined || entryPoints < 0) {
       return NextResponse.json(
         { ok: false, error: "entryPoints は0以上の数値である必要があります" },
@@ -114,7 +123,6 @@ export async function PUT(req: Request) {
     return NextResponse.json({ ok: false, error: errorMessage }, { status: 500 });
   }
 }
-
 
 
 

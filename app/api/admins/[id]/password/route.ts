@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
+import { requireAdminApi } from "@/lib/auth-helpers";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 // 管理ユーザーのパスワード更新
 export async function PUT(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
     const body = await req.json();
     const { password } = body as {
       password?: string;
@@ -20,6 +21,11 @@ export async function PUT(
         { ok: false, error: "SITE_ID が .env.local に設定されていません" },
         { status: 500 }
       );
+    }
+
+    const { admin, response } = await requireAdminApi();
+    if (!admin) {
+      return response;
     }
 
     if (!password) {

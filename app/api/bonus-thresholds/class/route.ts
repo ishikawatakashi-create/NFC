@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { requireAdminApi } from "@/lib/auth-helpers";
 
 function getSupabase() {
   return createClient(
@@ -18,6 +19,11 @@ export async function GET(req: Request) {
         { ok: false, error: "SITE_ID が .env.local に設定されていません" },
         { status: 500 }
       );
+    }
+
+    const { admin, response } = await requireAdminApi();
+    if (!admin) {
+      return response;
     }
 
     const supabase = getSupabase();
@@ -64,6 +70,11 @@ export async function PUT(req: Request) {
         { ok: false, error: "SITE_ID が .env.local に設定されていません" },
         { status: 500 }
       );
+    }
+
+    const { admin, response } = await requireAdminApi();
+    if (!admin) {
+      return response;
     }
 
     if (!studentClass) {
@@ -119,4 +130,3 @@ export async function PUT(req: Request) {
     return NextResponse.json({ ok: false, error: errorMessage }, { status: 500 });
   }
 }
-

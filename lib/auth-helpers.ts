@@ -1,4 +1,5 @@
 import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { NextResponse } from "next/server";
 import { redirect } from "next/navigation";
 
 /**
@@ -76,6 +77,23 @@ export async function requireAuth(): Promise<AdminInfo> {
   }
 
   return admin;
+}
+
+export async function requireAdminApi(): Promise<
+  | { admin: AdminInfo; response?: never }
+  | { admin: null; response: NextResponse }
+> {
+  const admin = await getCurrentAdmin();
+  if (!admin) {
+    return {
+      admin: null,
+      response: NextResponse.json(
+        { ok: false, error: "認証が必要です" },
+        { status: 401 }
+      ),
+    };
+  }
+  return { admin };
 }
 
 

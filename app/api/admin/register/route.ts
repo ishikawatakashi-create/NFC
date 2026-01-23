@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireAdminApi } from "@/lib/auth-helpers";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 /**
@@ -75,6 +76,25 @@ export async function POST(req: Request) {
     }
 
     const supabase = getSupabaseAdmin();
+
+    const { count, error: countError } = await supabase
+      .from("admins")
+      .select("id", { count: "exact", head: true })
+      .eq("site_id", siteId);
+
+    if (countError) {
+      return NextResponse.json(
+        { ok: false, error: "管理者情報の確認に失敗しました" },
+        { status: 500 }
+      );
+    }
+
+    if ((count ?? 0) > 0) {
+      const { admin, response } = await requireAdminApi();
+      if (!admin) {
+        return response;
+      }
+    }
 
     // 1. 既存のユーザーを検索
     const { data: existingUsers, error: listError } = await supabase.auth.admin.listUsers();
@@ -158,7 +178,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: errorMessage }, { status: 500 });
   }
 }
-
 
 
 

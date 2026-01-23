@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getRoleBasedAccessTime } from "@/lib/access-time-utils";
-import { getCurrentAdmin } from "@/lib/auth-helpers";
+import { requireAdminApi } from "@/lib/auth-helpers";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 function getSupabase() {
@@ -23,6 +23,11 @@ export async function GET(req: Request) {
       { ok: false, error: "SITE_ID が .env.local に設定されていません" },
       { status: 500 }
     );
+  }
+
+  const { admin, response } = await requireAdminApi();
+  if (!admin) {
+    return response;
   }
 
   // サービスロールキーを使用してRLSをバイパス
@@ -174,6 +179,10 @@ export async function POST(req: Request) {
         { ok: false, error: "SITE_ID が .env.local に設定されていません" },
         { status: 500 }
       );
+    }
+    const { admin, response } = await requireAdminApi();
+    if (!admin) {
+      return response;
     }
     if (!name) {
       return NextResponse.json({ ok: false, error: "name は必須です" }, { status: 400 });
@@ -348,6 +357,11 @@ export async function DELETE(req: Request) {
       );
     }
 
+    const { admin, response } = await requireAdminApi();
+    if (!admin) {
+      return response;
+    }
+
     // サービスロールキーを使用してRLSをバイパス
     const supabase = getSupabaseAdmin();
 
@@ -368,9 +382,8 @@ export async function DELETE(req: Request) {
     }
 
     // 現在の管理者情報を取得（ログ用）
-    const adminInfo = await getCurrentAdmin();
-    const adminName = adminInfo ? `${adminInfo.firstName} ${adminInfo.lastName}` : "Unknown";
-    const adminId = adminInfo?.id || "Unknown";
+    const adminName = `${admin.firstName} ${admin.lastName}`;
+    const adminId = admin.id;
 
     console.log(`[Students] DELETE: Attempting to delete student: id=${id}, name=${studentData.name}, site_id=${siteId}, admin=${adminName} (${adminId})`);
 

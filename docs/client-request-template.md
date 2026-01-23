@@ -1,104 +1,126 @@
-# クライアント様への情報提供依頼書（簡潔版）
+import time
+from urllib.parse import urljoin
 
----
-
-## 件名: LINE入退室通知システム開発のための情報提供のお願い
-
-〇〇様
-
-お世話になっております。
-
-LINE連携の入退室通知システムの開発を開始させていただきます。
-つきましては、以下の情報をご提供いただけますでしょうか。
-
----
-
-## 📋 今すぐご提供いただきたい情報（最優先）
-
-### 1. 教室の基本情報
-- **教室名**: ___________________________
-- **住所**: ___________________________
-- **管理者様のお名前**: ___________________________
-- **管理者様のメールアドレス**: ___________________________
-- **電話番号**: ___________________________
-
-### 2. LINE公式アカウント
-**Q. 既にLINE公式アカウントをお持ちですか？**
-- [ ] **はい** → アカウント名: ___________________________
-  - LINE Developers Consoleへのアクセス権限を付与いただくか、チャネルアクセストークンをご共有ください
-- [ ] **いいえ** → こちらで新規作成いたします（無料プランで開始可能）
-
-### 3. 生徒・保護者の情報
-**Q. 生徒リスト（Excel/CSV）をご提供いただけますか？**
-- [ ] **はい** → データをメールまたは共有フォルダでご提供ください
-- [ ] **いいえ** → 後日、管理画面から手動登録いただく形になります
-
-**必要な項目:**
-| 生徒名 | 学年 | クラス | 保護者名 | 続柄 | 電話番号 | メールアドレス |
-|--------|------|--------|----------|------|----------|----------------|
-| 山田太郎 | 小3 | A組 | 山田花子 | 母親 | 090-1234-5678 | yamada@example.com |
-
-※サンプルとして1〜2名分のデータをお送りいただければ、形式を確認できます
-
-### 4. NFCカード
-**Q. NFCカードは既にご用意されていますか？**
-- [ ] **はい** → 種類（Suica/PASMO/専用カードなど）: ___________________________
-  - 枚数: ___枚
-- [ ] **いいえ** → 購入が必要です（推奨カードをご提案できます）
-
-### 5. 通知内容の希望
-**Q. 親御さんに送る通知は、どのタイミングで必要ですか？**
-- [ ] 入室時
-- [ ] 退室時
-- [ ] 両方
-
-**Q. 通知メッセージのイメージ（現在のデフォルト）:**
-```
-太郎さんが入室しました。
-時刻: 2026/01/06 15:30
-```
-
-**追加で含めたい情報はありますか？**
-- [ ] 教室名（例: 【〇〇塾】太郎さんが入室しました。）
-- [ ] ポイント情報
-- [ ] その他: ___________________________
-
----
-
-## 📅 後日でも構わない情報
-
-以下は、開発を進めながら後日お伺いしても大丈夫です：
-
-- 営業時間と自動退室の設定
-- ポイントシステムの詳細
-- プライバシー設定（入退室情報の公開範囲）
-- 専用ドメインの有無
-
----
-
-## 🗓️ スケジュール感
-
-| フェーズ | 期間 | 内容 |
-|---------|------|------|
-| **情報収集** | 〜___月___日 | 上記情報のご提供 |
-| **LINE設定** | 1日 | LINE公式アカウント・Webhook設定 |
-| **データ投入** | 1〜2日 | 生徒・保護者データの登録 |
-| **テスト運用** | 3〜5日 | 動作確認・調整 |
-| **本番開始** | ___月___日〜 | 親御さんへの案内・運用開始 |
-
----
-
-## 📞 ご質問・ご不明点
-
-不明な点や、「こういう機能も欲しい」といったご要望がございましたら、いつでもお気軽にご連絡ください。
-
-お手数をおかけいたしますが、どうぞよろしくお願いいたします。
-
----
-
-**返信先**: ___________________________  
-**担当者**: ___________________________  
-**期限**: ___年___月___日まで
+import pandas as pd
+from bs4 import BeautifulSoup
+from playwright.sync_api import sync_playwright
 
 
+URLS = [
+    "https://www.heartpage.jp/sagamihara/list?type=in_home&city=14153",
+    "https://www.heartpage.jp/sagamihara/list?type=in_home&city=14153&page=2#facility_list_top",
+    "https://www.heartpage.jp/sagamihara/list?type=in_home&city=14153&page=3#facility_list_top",
+    "https://www.heartpage.jp/sagamihara/list?type=in_home&city=14153&page=4#facility_list_top",
+    "https://www.heartpage.jp/sagamihara/list?type=in_home&city=14153&page=5#facility_list_top",
+]
 
+OUTPUT_CSV = "heartpage_sagamihara_in_home.csv"
+SLEEP_SEC = 1.0
+
+
+def clean(text: str) -> str:
+    if not text:
+        return ""
+    return " ".join(text.split()).strip()
+
+
+def fetch_html_by_playwright(url: str) -> str:
+    """403対策：ブラウザとしてアクセスしてHTML取得"""
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context(
+            locale="ja-JP",
+            user_agent=(
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
+            ),
+        )
+        page = context.new_page()
+        page.goto(url, wait_until="domcontentloaded", timeout=60000)
+        page.wait_for_timeout(1200)  # 描画待ち
+        html = page.content()
+        context.close()
+        browser.close()
+        return html
+
+
+def get_table_value(store_div: BeautifulSoup, key: str) -> str:
+    """
+    table内の th が key（例：法人名）と一致する行の td を抜く
+    """
+    rows = store_div.select("table tr")
+    for tr in rows:
+        th = tr.find("th")
+        if not th:
+            continue
+
+        th_text = clean(th.get_text())
+        if th_text != key:
+            continue
+
+        # その行のtdを探す（colspanありなので最初のtdを取る）
+        td = tr.find("td")
+        if not td:
+            return ""
+
+        # 「施設・サービス」は td の中に a が入ってるので、テキストでOK
+        return clean(td.get_text(" ", strip=True))
+
+    return ""
+
+
+def parse_list_page(html: str, base_url: str):
+    soup = BeautifulSoup(html, "lxml")
+
+    stores = soup.select("div.store.item")
+    results = []
+
+    for store in stores:
+        corp_name = get_table_value(store, "法人名")
+        service = get_table_value(store, "施設・サービス")
+        address = get_table_value(store, "所在地")
+        phone = get_table_value(store, "電話番号")
+
+        # 「事業所情報を見る」リンク
+        detail_a = store.select_one("div.detail a.btn.white-allow")
+        detail_url = ""
+        if detail_a and detail_a.get("href"):
+            detail_url = urljoin(base_url, detail_a["href"])
+
+        results.append(
+            {
+                "法人名": corp_name,
+                "施設・サービス": service,
+                "所在地": address,
+                "電話番号": phone,
+                "事業所情報を見るURL": detail_url,
+            }
+        )
+
+    return results
+
+
+def main():
+    all_rows = []
+
+    for i, url in enumerate(URLS, start=1):
+        print(f"[{i}/{len(URLS)}] Fetching: {url}")
+        html = fetch_html_by_playwright(url)
+        rows = parse_list_page(html, base_url=url)
+        print(f"  -> {len(rows)} rows")
+        all_rows.extend(rows)
+        time.sleep(SLEEP_SEC)
+
+    df = pd.DataFrame(all_rows)
+
+    # 事業所URLで重複排除
+    if "事業所情報を見るURL" in df.columns:
+        df = df.drop_duplicates(subset=["事業所情報を見るURL"], keep="first")
+
+    df.to_csv(OUTPUT_CSV, index=False, encoding="utf-8-sig")
+    print(f"\nSaved: {OUTPUT_CSV} ({len(df)} rows)")
+
+
+if __name__ == "__main__":
+    main()

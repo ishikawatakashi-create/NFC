@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireAdminApi } from "@/lib/auth-helpers";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 // 親御さん情報取得
@@ -15,6 +16,11 @@ export async function GET(
         { ok: false, error: "SITE_ID が .env.local に設定されていません" },
         { status: 500 }
       );
+    }
+
+    const { admin, response } = await requireAdminApi();
+    if (!admin) {
+      return response;
     }
 
     // サービスロールキーを使用してRLSをバイパス
@@ -113,6 +119,11 @@ export async function PATCH(
       );
     }
 
+    const { admin, response } = await requireAdminApi();
+    if (!admin) {
+      return response;
+    }
+
     // サービスロールキーを使用してRLSをバイパス
     const supabase = getSupabaseAdmin();
 
@@ -173,6 +184,11 @@ export async function DELETE(
       );
     }
 
+    const { admin, response } = await requireAdminApi();
+    if (!admin) {
+      return response;
+    }
+
     // サービスロールキーを使用してRLSをバイパス
     const supabase = getSupabaseAdmin();
 
@@ -189,7 +205,6 @@ export async function DELETE(
     return NextResponse.json({ ok: false, error: errorMessage }, { status: 500 });
   }
 }
-
 
 
 

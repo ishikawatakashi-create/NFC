@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireAdminApi } from "@/lib/auth-helpers";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 // 親御さん一覧取得
@@ -14,6 +15,11 @@ export async function GET(req: Request) {
         { ok: false, error: "SITE_ID が .env.local に設定されていません" },
         { status: 500 }
       );
+    }
+
+    const { admin, response } = await requireAdminApi();
+    if (!admin) {
+      return response;
     }
 
     // サービスロールキーを使用してRLSをバイパス
@@ -136,6 +142,11 @@ export async function POST(req: Request) {
       );
     }
 
+    const { admin, response } = await requireAdminApi();
+    if (!admin) {
+      return response;
+    }
+
     if (!name) {
       return NextResponse.json({ ok: false, error: "name は必須です" }, { status: 400 });
     }
@@ -198,7 +209,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: errorMessage }, { status: 500 });
   }
 }
-
 
 
 

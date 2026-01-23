@@ -4,11 +4,12 @@ import { AdminLayout } from "@/components/admin/admin-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
-import { AlertTriangle, Save, Coins, Users } from "lucide-react"
+import { AlertTriangle, Save, Coins, Users, Plus, Minus, Download, CheckCircle, Database, BarChart3 } from "lucide-react"
 import { useState, useEffect } from "react"
 import { ClassBonusThresholdDialog } from "@/components/admin/class-bonus-threshold-dialog"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
@@ -42,6 +43,7 @@ interface PointHistory {
   bonus: number
   consumption: number
   admin_add: number
+  admin_subtract: number
 }
 
 export default function PointsPage() {
@@ -76,6 +78,12 @@ export default function PointsPage() {
   const [bulkAddDescription, setBulkAddDescription] = useState("")
   const [isBulkAdding, setIsBulkAdding] = useState(false)
 
+  // 一括ポイント減算
+  const [bulkSubtractDialogOpen, setBulkSubtractDialogOpen] = useState(false)
+  const [bulkSubtractPoints, setBulkSubtractPoints] = useState<Record<string, string>>({})
+  const [bulkSubtractDescription, setBulkSubtractDescription] = useState("")
+  const [isBulkSubtracting, setIsBulkSubtracting] = useState(false)
+
   useEffect(() => {
     loadPointSettings()
     loadStudents()
@@ -92,6 +100,16 @@ export default function PointsPage() {
       setBulkAddPoints(initialPoints)
     }
   }, [bulkAddDialogOpen, selectedStudentIds])
+
+  useEffect(() => {
+    if (bulkSubtractDialogOpen) {
+      const initialPoints: Record<string, string> = {}
+      selectedStudentIds.forEach((studentId) => {
+        initialPoints[studentId] = ""
+      })
+      setBulkSubtractPoints(initialPoints)
+    }
+  }, [bulkSubtractDialogOpen, selectedStudentIds])
 
   async function loadPointSettings() {
     try {
@@ -124,39 +142,39 @@ export default function PointsPage() {
             class: s.class,
           }))
 
-        // 月内ランキングの場合、今月のポイントを計算
+        // 月内ランキングの場合、一括取得APIを使用
         if (rankingType === "monthly") {
-          const now = new Date()
-          const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-          const monthStartISO = monthStart.toISOString()
+          try {
+            const rankingRes = await fetch("/api/points/monthly-ranking", { cache: "no-store" })
+            const rankingData = await rankingRes.json()
 
-          // 各生徒の今月のポイントを計算
-          const studentsWithMonthlyPoints = await Promise.all(
-            studentsWithPoints.map(async (student) => {
-              try {
-                const historyRes = await fetch(
-                  `/api/points/history?studentId=${encodeURIComponent(student.id)}&startDate=${monthStartISO}&type=all`,
-                  { cache: "no-store" }
-                )
-                const historyData = await historyRes.json()
-
-                if (historyRes.ok && historyData?.ok && historyData?.transactions) {
-                  const monthlyPoints = historyData.transactions.reduce(
-                    (sum: number, t: any) => sum + t.points,
-                    0
-                  )
-                  return { ...student, monthly_points: monthlyPoints }
-                }
-              } catch (e) {
-                console.error(`Failed to load monthly points for ${student.id}:`, e)
-              }
-              return { ...student, monthly_points: 0 }
-            })
-          )
-
-          studentsWithPoints = studentsWithMonthlyPoints.sort(
-            (a: any, b: any) => (b.monthly_points || 0) - (a.monthly_points || 0)
-          )
+            if (rankingRes.ok && rankingData?.ok && rankingData?.rankings) {
+              // ランキングデータと生徒データをマージ
+              const rankingMap = new Map(
+                rankingData.rankings.map((r: any) => [r.id, r.monthlyPoints])
+              )
+              studentsWithPoints = studentsWithPoints.map((student) => ({
+                ...student,
+                monthly_points: rankingMap.get(student.id) || 0,
+              }))
+              studentsWithPoints = studentsWithPoints.sort(
+                (a: any, b: any) => (b.monthly_points || 0) - (a.monthly_points || 0)
+              )
+            } else {
+              // フォールバック: 各生徒のポイントを0に設定
+              studentsWithPoints = studentsWithPoints.map((student) => ({
+                ...student,
+                monthly_points: 0,
+              }))
+            }
+          } catch (e) {
+            console.error("Failed to load monthly ranking:", e)
+            // フォールバック: 各生徒のポイントを0に設定
+            studentsWithPoints = studentsWithPoints.map((student) => ({
+              ...student,
+              monthly_points: 0,
+            }))
+          }
         } else {
           // 総合ランキング
           studentsWithPoints = studentsWithPoints.sort(
@@ -222,12 +240,27 @@ export default function PointsPage() {
     }))
   }
 
+  function handleBulkSubtractPointsChange(studentId: string, value: string) {
+    setBulkSubtractPoints((prev) => ({
+      ...prev,
+      [studentId]: value,
+    }))
+  }
+
   function handleSetAllPoints(points: string) {
     const newPoints: Record<string, string> = {}
     selectedStudentIds.forEach((studentId) => {
       newPoints[studentId] = points
     })
     setBulkAddPoints(newPoints)
+  }
+
+  function handleSetAllSubtractPoints(points: string) {
+    const newPoints: Record<string, string> = {}
+    selectedStudentIds.forEach((studentId) => {
+      newPoints[studentId] = points
+    })
+    setBulkSubtractPoints(newPoints)
   }
 
   async function handleBulkAdd() {
@@ -292,13 +325,35 @@ export default function PointsPage() {
       const data = await res.json()
 
       if (!res.ok || !data?.ok) {
-        throw new Error(data?.error || "一括ポイント付与に失敗しました")
+        console.error("Bulk add API error:", {
+          status: res.status,
+          statusText: res.statusText,
+          data,
+        })
+        throw new Error(data?.error || `一括ポイント付与に失敗しました（${res.status}）`)
       }
 
-      toast({
-        title: "成功",
-        description: data.message || `${data.successCount}名にポイントを付与しました`,
-      })
+      // 失敗がある場合は詳細を表示
+      if (data.failureCount > 0) {
+        const failedStudents = data.results
+          ?.filter((r: any) => !r.success)
+          .map((r: any) => {
+            const student = students.find((s) => s.id === r.studentId)
+            return `${student?.name || r.studentId}: ${r.error || "エラー"}`
+          })
+          .join("\n")
+
+        toast({
+          title: "一部失敗",
+          description: `${data.successCount}名に付与しましたが、${data.failureCount}名で失敗しました。\n${failedStudents || ""}`,
+          variant: "destructive",
+        })
+      } else {
+        toast({
+          title: "成功",
+          description: data.message || `${data.successCount}名にポイントを付与しました`,
+        })
+      }
 
       // ダイアログを閉じて、データを再読み込み
       setBulkAddDialogOpen(false)
@@ -307,6 +362,7 @@ export default function PointsPage() {
       setSelectedStudentIds(new Set())
       await loadStudents()
     } catch (e: any) {
+      console.error("Bulk add error:", e)
       toast({
         title: "エラー",
         description: e?.message || "一括ポイント付与に失敗しました",
@@ -314,6 +370,123 @@ export default function PointsPage() {
       })
     } finally {
       setIsBulkAdding(false)
+    }
+  }
+
+  async function handleBulkSubtract() {
+    if (selectedStudentIds.size === 0) {
+      toast({
+        title: "エラー",
+        description: "少なくとも1名の生徒を選択してください",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // 各生徒のポイント数を検証
+    const assignments: Array<{ studentId: string; points: number; description?: string }> = []
+    const errors: string[] = []
+
+    selectedStudentIds.forEach((studentId) => {
+      const pointsStr = bulkSubtractPoints[studentId] || ""
+      const points = parseInt(pointsStr, 10)
+
+      if (!pointsStr || isNaN(points) || points <= 0) {
+        const student = students.find((s) => s.id === studentId)
+        errors.push(`${student?.name || studentId}: ポイント数が無効です`)
+        return
+      }
+
+      // 現在のポイント数を確認
+      const student = students.find((s) => s.id === studentId)
+      if (student && student.current_points < points) {
+        errors.push(`${student.name}: ポイントが不足しています（現在: ${student.current_points}pt）`)
+        return
+      }
+
+      assignments.push({
+        studentId,
+        points,
+        description: bulkSubtractDescription || undefined,
+      })
+    })
+
+    if (errors.length > 0) {
+      toast({
+        title: "エラー",
+        description: errors.join("\n"),
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (assignments.length === 0) {
+      toast({
+        title: "エラー",
+        description: "有効なポイント数が設定されていません",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsBulkSubtracting(true)
+    try {
+      const res = await fetch("/api/points/bulk-subtract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          assignments,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok || !data?.ok) {
+        console.error("Bulk subtract API error:", {
+          status: res.status,
+          statusText: res.statusText,
+          data,
+        })
+        throw new Error(data?.error || `一括ポイント減算に失敗しました（${res.status}）`)
+      }
+
+      // 失敗がある場合は詳細を表示
+      if (data.failureCount > 0) {
+        const failedStudents = data.results
+          ?.filter((r: any) => !r.success)
+          .map((r: any) => {
+            const student = students.find((s) => s.id === r.studentId)
+            return `${student?.name || r.studentId}: ${r.error || "エラー"}`
+          })
+          .join("\n")
+
+        toast({
+          title: "一部失敗",
+          description: `${data.successCount}名から減算しましたが、${data.failureCount}名で失敗しました。\n${failedStudents || ""}`,
+          variant: "destructive",
+        })
+      } else {
+        toast({
+          title: "成功",
+          description: data.message || `${data.successCount}名からポイントを減算しました`,
+        })
+      }
+
+      // ダイアログを閉じて、データを再読み込み
+      setBulkSubtractDialogOpen(false)
+      setBulkSubtractPoints({})
+      setBulkSubtractDescription("")
+      setSelectedStudentIds(new Set())
+      await loadStudents()
+    } catch (e: any) {
+      console.error("Bulk subtract error:", e)
+      toast({
+        title: "エラー",
+        description: e?.message || "一括ポイント減算に失敗しました",
+        variant: "destructive",
+      })
+    } finally {
+      setIsBulkSubtracting(false)
     }
   }
 
@@ -359,6 +532,7 @@ export default function PointsPage() {
               bonus: 0,
               consumption: 0,
               admin_add: 0,
+              admin_subtract: 0,
             })
           }
 
@@ -369,7 +543,13 @@ export default function PointsPage() {
             else if (transaction.transactionType === "bonus") dayData.bonus += transaction.points
             else if (transaction.transactionType === "admin_add") dayData.admin_add += transaction.points
           } else {
-            dayData.consumption += Math.abs(transaction.points)
+            const absPoints = Math.abs(transaction.points)
+            dayData.total -= absPoints
+            if (transaction.transactionType === "admin_subtract") {
+              dayData.admin_subtract += absPoints
+            } else {
+              dayData.consumption += absPoints
+            }
           }
         })
 
@@ -380,6 +560,42 @@ export default function PointsPage() {
       }
     } catch (e: any) {
       console.error("Failed to load point history:", e)
+    }
+  }
+
+  async function handleExportHistory() {
+    try {
+      const now = new Date()
+      let startDate: Date
+
+      switch (selectedPeriod) {
+        case "week":
+          startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+          break
+        case "month":
+          startDate = new Date(now.getFullYear(), now.getMonth(), 1)
+          break
+        case "year":
+          startDate = new Date(now.getFullYear(), 0, 1)
+          break
+        default:
+          startDate = new Date(now.getFullYear(), now.getMonth(), 1)
+      }
+
+      const params = new URLSearchParams({
+        startDate: startDate.toISOString(),
+        endDate: now.toISOString(),
+        type: "all",
+      })
+
+      const url = `/api/points/export?${params.toString()}`
+      window.open(url, "_blank")
+    } catch (e: any) {
+      toast({
+        title: "エラー",
+        description: "エクスポートに失敗しました",
+        variant: "destructive",
+      })
     }
   }
 
@@ -441,6 +657,42 @@ export default function PointsPage() {
   return (
     <AdminLayout pageTitle="ポイント管理" breadcrumbs={[{ label: "ポイント管理" }]}>
       <div className="mx-auto max-w-7xl space-y-6">
+        {/* 機能メニュー */}
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card className="cursor-pointer hover:bg-accent transition-colors" onClick={() => window.location.href = "/admin/points/verify"}>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <CheckCircle className="h-8 w-8 text-blue-600" />
+                <div>
+                  <h3 className="font-semibold">整合性チェック</h3>
+                  <p className="text-sm text-muted-foreground">ポイントの整合性を検証・修正</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="cursor-pointer hover:bg-accent transition-colors" onClick={() => window.location.href = "/admin/points/backup"}>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <Database className="h-8 w-8 text-green-600" />
+                <div>
+                  <h3 className="font-semibold">バックアップ・復元</h3>
+                  <p className="text-sm text-muted-foreground">ポイント状態の保存・復元</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="cursor-pointer hover:bg-accent transition-colors" onClick={() => window.location.href = "/admin/points/dashboard"}>
+            <CardContent className="pt-6">
+              <div className="flex items-center gap-3">
+                <BarChart3 className="h-8 w-8 text-purple-600" />
+                <div>
+                  <h3 className="font-semibold">統計ダッシュボード</h3>
+                  <p className="text-sm text-muted-foreground">ポイント運用の可視化</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
         {/* 統計サマリー */}
         <div className="grid gap-4 md:grid-cols-3">
           <Card>
@@ -516,6 +768,7 @@ export default function PointsPage() {
                   <Line type="monotone" dataKey="entry" stroke="#8884d8" name="入室" />
                   <Line type="monotone" dataKey="bonus" stroke="#82ca9d" name="ボーナス" />
                   <Line type="monotone" dataKey="admin_add" stroke="#ffc658" name="管理追加" />
+                  <Line type="monotone" dataKey="admin_subtract" stroke="#ff6b6b" name="管理減算" />
                   <Line type="monotone" dataKey="consumption" stroke="#ff7300" name="消費" />
                 </LineChart>
               </ResponsiveContainer>
@@ -550,16 +803,36 @@ export default function PointsPage() {
                 >
                   月内
                 </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExportHistory}
+                  className="gap-2"
+                >
+                  <Download className="h-4 w-4" />
+                  履歴エクスポート
+                </Button>
                 {selectedStudentIds.size > 0 && (
-                  <Button
-                    variant="default"
-                    size="sm"
-                    onClick={() => setBulkAddDialogOpen(true)}
-                    className="gap-2"
-                  >
-                    <Users className="h-4 w-4" />
-                    一括付与 ({selectedStudentIds.size}名)
-                  </Button>
+                  <>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      onClick={() => setBulkAddDialogOpen(true)}
+                      className="gap-2"
+                    >
+                      <Plus className="h-4 w-4" />
+                      一括付与 ({selectedStudentIds.size}名)
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setBulkSubtractDialogOpen(true)}
+                      className="gap-2"
+                    >
+                      <Minus className="h-4 w-4" />
+                      一括減算 ({selectedStudentIds.size}名)
+                    </Button>
+                  </>
                 )}
               </div>
             </div>
@@ -677,7 +950,7 @@ export default function PointsPage() {
                 onChange={(e) => setEntryPoints(e.target.value)}
                 className="max-w-xs"
               />
-              <p className="text-sm text-muted-foreground">入室1回あたりに付与するポイント数（現在は1点固定）</p>
+              <p className="text-sm text-muted-foreground">入室1回あたりに付与するポイント数</p>
             </div>
 
             <div className="flex items-center justify-between rounded-lg border border-border p-4">
@@ -688,6 +961,12 @@ export default function PointsPage() {
                 <p className="text-sm text-muted-foreground">同じ日に複数回入室してもポイントは1回のみ付与されます</p>
               </div>
               <Switch id="daily-limit" checked={dailyLimit} onCheckedChange={setDailyLimit} />
+            </div>
+            <div className="flex justify-end pt-2">
+              <Button onClick={handleSave} size="sm" className="gap-2">
+                <Save className="h-4 w-4" />
+                設定を保存
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -789,13 +1068,6 @@ export default function PointsPage() {
           classLabel="イノベーター"
         />
 
-        {/* 保存ボタン */}
-        <div className="flex justify-end">
-          <Button onClick={handleSave} size="lg" className="gap-2">
-            <Save className="h-4 w-4" />
-            保存
-          </Button>
-        </div>
 
         {/* 一括ポイント付与ダイアログ */}
         <Dialog open={bulkAddDialogOpen} onOpenChange={setBulkAddDialogOpen}>
@@ -841,12 +1113,13 @@ export default function PointsPage() {
                     </Button>
                   </div>
                 </div>
-                <Input
+                <Textarea
                   id="bulk-add-description"
                   value={bulkAddDescription}
                   onChange={(e) => setBulkAddDescription(e.target.value)}
                   disabled={isBulkAdding}
                   placeholder="例: 第1回テスト加点"
+                  rows={3}
                 />
               </div>
               <div className="flex-1 overflow-y-auto border rounded-md">
@@ -899,6 +1172,111 @@ export default function PointsPage() {
           </DialogContent>
         </Dialog>
 
+        {/* 一括ポイント減算ダイアログ */}
+        <Dialog open={bulkSubtractDialogOpen} onOpenChange={setBulkSubtractDialogOpen}>
+          <DialogContent className="max-w-3xl max-h-[80vh] flex flex-col">
+            <DialogHeader>
+              <DialogTitle>一括ポイント減算</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 flex-1 overflow-hidden flex flex-col">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>説明（任意）</Label>
+                  <div className="flex gap-2 items-center">
+                    <Input
+                      type="number"
+                      min="1"
+                      placeholder="全員に設定（減算）"
+                      className="w-32"
+                      disabled={isBulkSubtracting}
+                      id="bulk-subtract-all-input"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          const value = (e.target as HTMLInputElement).value
+                          if (value) {
+                            handleSetAllSubtractPoints(value)
+                            ;(e.target as HTMLInputElement).value = ""
+                          }
+                        }
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={isBulkSubtracting}
+                      onClick={() => {
+                        const input = document.getElementById("bulk-subtract-all-input") as HTMLInputElement
+                        if (input?.value) {
+                          handleSetAllSubtractPoints(input.value)
+                          input.value = ""
+                        }
+                      }}
+                    >
+                      全員に適用
+                    </Button>
+                  </div>
+                </div>
+                <Textarea
+                  id="bulk-subtract-description"
+                  value={bulkSubtractDescription}
+                  onChange={(e) => setBulkSubtractDescription(e.target.value)}
+                  disabled={isBulkSubtracting}
+                  placeholder="例: 景品と交換、キャンペーン対応、返金処理"
+                  rows={3}
+                />
+              </div>
+              <div className="flex-1 overflow-y-auto border rounded-md">
+                <Table>
+                  <TableHeader className="sticky top-0 bg-background">
+                    <TableRow>
+                      <TableHead>名前</TableHead>
+                      <TableHead>クラス</TableHead>
+                      <TableHead className="text-right">現在のポイント</TableHead>
+                      <TableHead className="text-right w-32">減算ポイント</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {Array.from(selectedStudentIds)
+                      .map((studentId) => students.find((s) => s.id === studentId))
+                      .filter((s): s is Student => s !== undefined)
+                      .map((student) => (
+                        <TableRow key={student.id}>
+                          <TableCell className="font-medium">{student.name}</TableCell>
+                          <TableCell>{getClassLabel(student.class)}</TableCell>
+                          <TableCell className="text-right">{student.current_points} pt</TableCell>
+                          <TableCell>
+                            <Input
+                              type="number"
+                              min="1"
+                              max={student.current_points}
+                              value={bulkSubtractPoints[student.id] || ""}
+                              onChange={(e) => handleBulkSubtractPointsChange(student.id, e.target.value)}
+                              disabled={isBulkSubtracting}
+                              placeholder="0"
+                              className="text-right"
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                選択した{selectedStudentIds.size}名から個別にポイントを減算できます
+              </p>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setBulkSubtractDialogOpen(false)} disabled={isBulkSubtracting}>
+                キャンセル
+              </Button>
+              <Button onClick={handleBulkSubtract} disabled={isBulkSubtracting} variant="destructive">
+                {isBulkSubtracting ? "減算中..." : "減算する"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         {/* 生徒のポイント履歴ダイアログ */}
         <Dialog open={studentHistoryDialogOpen} onOpenChange={setStudentHistoryDialogOpen}>
           <DialogContent className="max-w-3xl">
@@ -920,10 +1298,11 @@ export default function PointsPage() {
                       <TableHead>種別</TableHead>
                       <TableHead className="text-right">ポイント</TableHead>
                       <TableHead>説明</TableHead>
+                      <TableHead>操作者</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {studentPointTransactions.map((transaction) => (
+                    {studentPointTransactions.map((transaction: any) => (
                       <TableRow key={transaction.id}>
                         <TableCell>
                           {new Date(transaction.createdAt).toLocaleString("ja-JP", {
@@ -958,6 +1337,9 @@ export default function PointsPage() {
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
                           {transaction.description || "-"}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {transaction.adminName || "-"}
                         </TableCell>
                       </TableRow>
                     ))}

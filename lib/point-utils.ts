@@ -1,10 +1,8 @@
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  // サービスロールキーを使用してRLSをバイパス
+  return getSupabaseAdmin();
 }
 
 /**
@@ -106,12 +104,16 @@ export async function hasReceivedPointsToday(
     .limit(1);
 
   if (error) {
-    console.error(`[Points] Failed to check today's points for student ${studentId}:`, error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error(`[Points] Failed to check today's points for student ${studentId}:`, error);
+    }
     return false;
   }
 
   const hasReceived = (data?.length || 0) > 0;
-  console.log(`[Points] Student ${studentId}: hasReceivedPointsToday=${hasReceived}`);
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`[Points] Student ${studentId}: hasReceivedPointsToday=${hasReceived}`);
+  }
   return hasReceived;
 }
 
@@ -140,7 +142,9 @@ export async function getMonthlyEntryCount(
     .gte("timestamp", monthStartISO);
 
   if (error) {
-    console.error("Failed to get monthly entry count:", error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error("Failed to get monthly entry count:", error);
+    }
     return 0;
   }
 
@@ -173,7 +177,9 @@ export async function hasReceivedBonusThisMonth(
     .limit(1);
 
   if (error) {
-    console.error("Failed to check monthly bonus:", error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error("Failed to check monthly bonus:", error);
+    }
     return false;
   }
 
@@ -188,6 +194,7 @@ export async function hasReceivedBonusThisMonth(
  * @param transactionType 取引種別
  * @param description 説明
  * @param referenceId 関連レコードID
+ * @param adminId 管理者ID（admin_addの場合のみ）
  * @returns 成功した場合true
  */
 export async function addPoints(
@@ -196,33 +203,129 @@ export async function addPoints(
   points: number,
   transactionType: "entry" | "bonus" | "admin_add",
   description?: string,
-  referenceId?: string
+  referenceId?: string,
+  adminId?: string
 ): Promise<boolean> {
   const supabase = getSupabase();
 
   try {
-    // トランザクション処理（Supabaseでは直接サポートされていないため、順次実行）
-    // 1. ポイント履歴を追加
-    const { error: transactionError } = await supabase
-      .from("point_transactions")
-      .insert([
-        {
-          site_id: siteId,
-          student_id: studentId,
-          transaction_type: transactionType,
-          points: points,
-          description: description || null,
-          reference_id: referenceId || null,
-        },
-      ]);
+    // RPC関数を使用してトランザクション処理（推奨）
+    let useFallback = false;
+    try {
+      const { data, error: rpcError } = await supabase.rpc("add_points_transaction", {
+        p_site_id: siteId,
+        p_student_id: studentId,
+        p_points: points,
+        p_transaction_type: transactionType,
+        p_description: description || null,
+        p_reference_id: referenceId || null,
+        p_admin_id: adminId || null,
+      });
 
-    if (transactionError) {
-      console.error(`[Points] Failed to add point transaction for student ${studentId}:`, transactionError);
-      console.error(`[Points] Error details:`, JSON.stringify(transactionError, null, 2));
+      if (!rpcError && data === true) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`[Points] Points added successfully via RPC for student ${studentId}: ${points} points (${transactionType})`);
+        }
+        return true;
+      }
+
+      // RPC関数が存在しない、またはエラーが発生した場合はフォールバック処理
+      if (rpcError) {
+        // RPC関数が存在しない場合（PGRST116エラー）はフォールバックに進む
+        if (rpcError.code === 'PGRST116' || rpcError.message?.includes('function') || rpcError.message?.includes('does not exist')) {
+          if (process.env.NODE_ENV === 'development') {
+            console.log(`[Points] RPC function not available, using fallback for student ${studentId}`);
+          }
+          useFallback = true;
+        } else {
+          // その他のエラー（制約違反など）はエラーとして返す
+          if (process.env.NODE_ENV === 'development') {
+            console.error(`[Points] RPC function error for student ${studentId}:`, rpcError);
+            console.error(`[Points] RPC error details:`, JSON.stringify(rpcError, null, 2));
+          }
+          // エラーメッセージを返すためにfalseを返す（フォールバック処理に進む）
+          useFallback = true;
+        }
+      } else if (data !== true) {
+        // RPC関数がfalseを返した場合
+        if (process.env.NODE_ENV === 'development') {
+          console.error(`[Points] RPC function returned false for student ${studentId}`);
+        }
+        useFallback = true;
+      }
+    } catch (rpcException: any) {
+      // RPC関数呼び出し自体が例外を投げた場合
+      if (process.env.NODE_ENV === 'development') {
+        console.error(`[Points] RPC function exception for student ${studentId}:`, rpcException);
+      }
+      useFallback = true;
+    }
+
+    if (!useFallback) {
+      return true;
+    }
+
+    // フォールバック: 順次実行（エラー時にロールバック）
+    let transactionId: string | null = null;
+
+    // 1. ポイント履歴を追加
+    const transactionData: any = {
+      site_id: siteId,
+      student_id: studentId,
+      transaction_type: transactionType,
+      points: points,
+      description: description || null,
+      reference_id: referenceId || null,
+    };
+    
+    // 管理者による操作の場合は管理者IDを記録
+    if (transactionType === "admin_add" && adminId) {
+      transactionData.admin_id = adminId;
+    }
+    
+    let { data: insertedData, error: transactionError } = await supabase
+      .from("point_transactions")
+      .insert([transactionData])
+      .select("id")
+      .single();
+
+    // admin_idカラムが存在しない場合のエラー（スキーマキャッシュの問題）を処理
+    if (transactionError && adminId && (
+      transactionError.message?.includes("admin_id") || 
+      transactionError.message?.includes("schema cache") ||
+      transactionError.code === "PGRST204"
+    )) {
+      if (process.env.NODE_ENV === 'development') {
+        console.warn(`[Points] admin_id column not available, retrying without admin_id for student ${studentId}`);
+      }
+      // admin_idなしで再試行
+      const transactionDataWithoutAdmin = { ...transactionData };
+      delete transactionDataWithoutAdmin.admin_id;
+      
+      const retryResult = await supabase
+        .from("point_transactions")
+        .insert([transactionDataWithoutAdmin])
+        .select("id")
+        .single();
+      
+      if (!retryResult.error && retryResult.data) {
+        insertedData = retryResult.data;
+        transactionError = null;
+      } else {
+        transactionError = retryResult.error;
+      }
+    }
+
+    if (transactionError || !insertedData) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error(`[Points] Failed to add point transaction for student ${studentId}:`, transactionError);
+        console.error(`[Points] Transaction data:`, JSON.stringify(transactionData, null, 2));
+        console.error(`[Points] Transaction error details:`, JSON.stringify(transactionError, null, 2));
+      }
       return false;
     }
 
-    console.log(`[Points] Point transaction added successfully for student ${studentId}: ${points} points (${transactionType})`);
+    transactionId = insertedData.id;
 
     // 2. 生徒のポイントを更新
     const { error: updateError } = await supabase.rpc("increment_student_points", {
@@ -232,8 +335,6 @@ export async function addPoints(
 
     // RPC関数が存在しない場合は、直接UPDATEを実行
     if (updateError) {
-      console.log(`[Points] RPC function not available, using direct UPDATE for student ${studentId}`);
-      
       // 現在のポイントを取得
       const { data: studentData, error: fetchError } = await supabase
         .from("students")
@@ -243,16 +344,18 @@ export async function addPoints(
         .single();
 
       if (fetchError) {
-        console.error(`[Points] Failed to fetch current points for student ${studentId}:`, fetchError);
-        console.error(`[Points] Fetch error details:`, JSON.stringify(fetchError, null, 2));
-        // 履歴は追加済みなので、ロールバックはしない（手動で修正が必要な場合がある）
+        if (process.env.NODE_ENV === 'development') {
+          console.error(`[Points] Failed to fetch current points for student ${studentId}:`, fetchError);
+        }
+        // ロールバック: 履歴を削除
+        if (transactionId) {
+          await supabase.from("point_transactions").delete().eq("id", transactionId);
+        }
         return false;
       }
 
       const currentPoints = studentData?.current_points ?? 0;
       const newPoints = currentPoints + points;
-
-      console.log(`[Points] Updating points for student ${studentId}: ${currentPoints} + ${points} = ${newPoints}`);
 
       const { error: updatePointsError } = await supabase
         .from("students")
@@ -261,21 +364,32 @@ export async function addPoints(
         .eq("site_id", siteId);
 
       if (updatePointsError) {
-        console.error(`[Points] Failed to update points for student ${studentId}:`, updatePointsError);
-        console.error(`[Points] Update error details:`, JSON.stringify(updatePointsError, null, 2));
-        // 履歴は追加済みなので、ロールバックはしない（手動で修正が必要な場合がある）
+        if (process.env.NODE_ENV === 'development') {
+          console.error(`[Points] Failed to update points for student ${studentId}:`, updatePointsError);
+        }
+        // ロールバック: 履歴を削除
+        if (transactionId) {
+          await supabase.from("point_transactions").delete().eq("id", transactionId);
+        }
         return false;
       }
-
-      console.log(`[Points] Points updated successfully for student ${studentId}: ${newPoints} points`);
     } else {
-      console.log(`[Points] Points updated via RPC for student ${studentId}`);
+      // RPC関数が成功した場合
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[Points] Points updated via RPC for student ${studentId}`);
+      }
+    }
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[Points] Points added successfully for student ${studentId}: ${points} points (${transactionType})`);
     }
 
     return true;
   } catch (e: any) {
-    console.error(`[Points] Exception in addPoints for student ${studentId}:`, e);
-    console.error(`[Points] Exception details:`, JSON.stringify(e, null, 2));
+    if (process.env.NODE_ENV === 'development') {
+      console.error(`[Points] Exception in addPoints for student ${studentId}:`, e);
+      console.error(`[Points] Exception details:`, JSON.stringify(e, null, 2));
+    }
     return false;
   }
 }
@@ -286,64 +400,207 @@ export async function addPoints(
  * @param studentId 生徒ID
  * @param points 消費するポイント数
  * @param description 説明
+ * @param adminId 管理者ID（管理者による減算の場合のみ）
  * @returns 成功した場合true
  */
 export async function consumePoints(
   siteId: string,
   studentId: string,
   points: number,
-  description?: string
+  description?: string,
+  adminId?: string
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = getSupabase();
 
-  // 現在のポイントを取得
-  const { data: studentData, error: fetchError } = await supabase
-    .from("students")
-    .select("current_points")
-    .eq("id", studentId)
-    .eq("site_id", siteId)
-    .single();
+  try {
+    const transactionType = adminId ? "admin_subtract" : "consumption";
 
-  if (fetchError) {
-    return { success: false, error: "ポイント情報の取得に失敗しました" };
+    // RPC関数を使用してトランザクション処理（推奨）
+    let useFallback = false;
+    let rpcErrorMessage: string | undefined = undefined;
+    
+    try {
+      const { data, error: rpcError } = await supabase.rpc("subtract_points_transaction", {
+        p_site_id: siteId,
+        p_student_id: studentId,
+        p_points: points,
+        p_transaction_type: transactionType,
+        p_description: description || null,
+        p_admin_id: adminId || null,
+      });
+
+      if (!rpcError && data === true) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`[Points] Points subtracted successfully via RPC for student ${studentId}: ${points} points`);
+        }
+        return { success: true };
+      }
+
+      // RPC関数が存在しない、またはエラーが発生した場合はフォールバック処理
+      if (rpcError) {
+        // エラーメッセージからポイント不足を判定
+        if (rpcError.message?.includes("Insufficient points") || rpcError.message?.includes("不足")) {
+          return { success: false, error: "ポイントが不足しています" };
+        }
+        
+        // RPC関数が存在しない場合（PGRST116エラー）はフォールバックに進む
+        if (rpcError.code === 'PGRST116' || rpcError.message?.includes('function') || rpcError.message?.includes('does not exist')) {
+          if (process.env.NODE_ENV === 'development') {
+            console.log(`[Points] RPC function not available, using fallback for student ${studentId}`);
+          }
+          useFallback = true;
+        } else {
+          // その他のエラーは詳細をログに記録
+          if (process.env.NODE_ENV === 'development') {
+            console.error(`[Points] RPC function error for student ${studentId}:`, rpcError);
+            console.error(`[Points] RPC error details:`, JSON.stringify(rpcError, null, 2));
+          }
+          // エラーメッセージを保存してフォールバックに進む
+          rpcErrorMessage = rpcError.message || "ポイントの減算に失敗しました";
+          useFallback = true;
+        }
+      } else if (data !== true) {
+        // RPC関数がfalseを返した場合
+        if (process.env.NODE_ENV === 'development') {
+          console.error(`[Points] RPC function returned false for student ${studentId}`);
+        }
+        useFallback = true;
+      }
+    } catch (rpcException: any) {
+      // RPC関数呼び出し自体が例外を投げた場合
+      if (process.env.NODE_ENV === 'development') {
+        console.error(`[Points] RPC function exception for student ${studentId}:`, rpcException);
+      }
+      useFallback = true;
+    }
+
+    if (!useFallback) {
+      return { success: true };
+    }
+
+    // フォールバック: 順次実行（エラー時にロールバック）
+    // 現在のポイントを取得
+    const { data: studentData, error: fetchError } = await supabase
+      .from("students")
+      .select("current_points")
+      .eq("id", studentId)
+      .eq("site_id", siteId)
+      .single();
+
+    if (fetchError) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error(`[Points] Failed to fetch current points for student ${studentId}:`, fetchError);
+      }
+      return { success: false, error: `ポイント情報の取得に失敗しました: ${fetchError?.message || fetchError?.details || "Unknown error"}` };
+    }
+
+    const currentPoints = studentData?.current_points || 0;
+
+    if (currentPoints < points) {
+      return { success: false, error: `ポイントが不足しています（現在: ${currentPoints}pt、必要: ${points}pt）` };
+    }
+
+    // 1. ポイント履歴を追加
+    const transactionData: any = {
+      site_id: siteId,
+      student_id: studentId,
+      transaction_type: transactionType,
+      points: -points, // 負の値で記録
+      description: description || null,
+    };
+    
+    // 管理者による操作の場合は管理者IDを記録（admin_idカラムが存在する場合のみ）
+    // マイグレーションが未実行の場合でも動作するように、エラー時はadmin_idなしで再試行
+    if (adminId) {
+      // まずadmin_idを含めて試行
+      transactionData.admin_id = adminId;
+    }
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[Points] Inserting transaction for student ${studentId}:`, JSON.stringify(transactionData, null, 2));
+    }
+    
+    let { data: insertedData, error: transactionError } = await supabase
+      .from("point_transactions")
+      .insert([transactionData])
+      .select("id")
+      .single();
+
+    // admin_idカラムが存在しない場合のエラー（スキーマキャッシュの問題）を処理
+    if (transactionError && adminId && (
+      transactionError.message?.includes("admin_id") || 
+      transactionError.message?.includes("schema cache") ||
+      transactionError.code === "PGRST204"
+    )) {
+      if (process.env.NODE_ENV === 'development') {
+        console.warn(`[Points] admin_id column not available, retrying without admin_id for student ${studentId}`);
+      }
+      // admin_idなしで再試行
+      const transactionDataWithoutAdmin = { ...transactionData };
+      delete transactionDataWithoutAdmin.admin_id;
+      
+      const retryResult = await supabase
+        .from("point_transactions")
+        .insert([transactionDataWithoutAdmin])
+        .select("id")
+        .single();
+      
+      if (!retryResult.error && retryResult.data) {
+        insertedData = retryResult.data;
+        transactionError = null;
+      } else {
+        transactionError = retryResult.error;
+      }
+    }
+
+    if (transactionError || !insertedData) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error(`[Points] Failed to insert point transaction for student ${studentId}:`, transactionError);
+        console.error(`[Points] Transaction data:`, JSON.stringify(transactionData, null, 2));
+        console.error(`[Points] Error code:`, transactionError?.code);
+        console.error(`[Points] Error message:`, transactionError?.message);
+        console.error(`[Points] Error details:`, transactionError?.details);
+        console.error(`[Points] Error hint:`, transactionError?.hint);
+      }
+      return { 
+        success: false, 
+        error: transactionError?.message || transactionError?.details || transactionError?.hint || "ポイント履歴の記録に失敗しました" 
+      };
+    }
+
+    const transactionId = insertedData.id;
+
+    // 2. 生徒のポイントを更新
+    const newPoints = currentPoints - points;
+
+    const { error: updateError } = await supabase
+      .from("students")
+      .update({ current_points: newPoints })
+      .eq("id", studentId)
+      .eq("site_id", siteId);
+
+    if (updateError) {
+      // ロールバック: 履歴を削除
+      await supabase.from("point_transactions").delete().eq("id", transactionId);
+      return { success: false, error: "ポイントの更新に失敗しました" };
+    }
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[Points] Points subtracted successfully for student ${studentId}: ${points} points`);
+    }
+
+    // RPCエラーメッセージがある場合は返す（フォールバックが成功した場合でも警告として）
+    if (rpcErrorMessage && process.env.NODE_ENV === 'development') {
+      console.warn(`[Points] RPC function failed but fallback succeeded for student ${studentId}: ${rpcErrorMessage}`);
+    }
+
+    return { success: true };
+  } catch (e: any) {
+    if (process.env.NODE_ENV === 'development') {
+      console.error(`[Points] Exception in consumePoints for student ${studentId}:`, e);
+      console.error(`[Points] Exception details:`, JSON.stringify(e, null, 2));
+    }
+    return { success: false, error: e?.message || "ポイントの減算に失敗しました" };
   }
-
-  const currentPoints = studentData?.current_points || 0;
-
-  if (currentPoints < points) {
-    return { success: false, error: "ポイントが不足しています" };
-  }
-
-  // 1. ポイント履歴を追加
-  const { error: transactionError } = await supabase
-    .from("point_transactions")
-    .insert([
-      {
-        site_id: siteId,
-        student_id: studentId,
-        transaction_type: "consumption",
-        points: -points, // 負の値で記録
-        description: description || null,
-      },
-    ]);
-
-  if (transactionError) {
-    return { success: false, error: "ポイント履歴の記録に失敗しました" };
-  }
-
-  // 2. 生徒のポイントを更新
-  const newPoints = currentPoints - points;
-
-  const { error: updateError } = await supabase
-    .from("students")
-    .update({ current_points: newPoints })
-    .eq("id", studentId)
-    .eq("site_id", siteId);
-
-  if (updateError) {
-    return { success: false, error: "ポイントの更新に失敗しました" };
-  }
-
-  return { success: true };
 }
 

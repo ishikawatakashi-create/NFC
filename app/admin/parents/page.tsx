@@ -10,9 +10,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Plus, Search, Pencil, Trash2, UserPlus, MessageSquare, Users, RefreshCw, Copy, QrCode, Smartphone } from "lucide-react"
+import { Plus, Search, Pencil, Trash2, UserPlus, MessageSquare, Users, RefreshCw, Copy } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
-import { ParentQRDialog } from "@/components/admin/parent-qr-dialog"
 
 interface Parent {
   id: string
@@ -49,10 +48,8 @@ export default function ParentsPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isLineLinkDialogOpen, setIsLineLinkDialogOpen] = useState(false)
   const [isStudentLinkDialogOpen, setIsStudentLinkDialogOpen] = useState(false)
-  const [isQRDialogOpen, setIsQRDialogOpen] = useState(false)
   const [editingParent, setEditingParent] = useState<Parent | null>(null)
   const [linkingParent, setLinkingParent] = useState<Parent | null>(null)
-  const [qrParent, setQrParent] = useState<Parent | null>(null)
   const [newParent, setNewParent] = useState({
     name: "",
     phoneNumber: "",
@@ -102,16 +99,25 @@ export default function ParentsPage() {
           const studentRes = await fetch(`/api/parents/${parent.id}/students?_t=${timestamp}`, { cache: "no-store" })
           const studentData = await studentRes.json()
           if (studentData?.ok && studentData?.students) {
-            parent.students = studentData.students.map((s: any) => ({
+            const students = studentData.students.map((s: any) => ({
               id: String(s.id),
               name: s.name || "",
             }))
-            console.log(`[Parents] Loaded ${parent.students.length} students for parent ${parent.name} (${parent.id})`)
+            parent.students = students
+            if (process.env.NODE_ENV === 'development') {
+              console.log(`[Parents] Loaded ${students.length} students for parent ${parent.name} (${parent.id})`)
+            }
           } else {
-            console.warn(`[Parents] No students found for parent ${parent.name} (${parent.id})`)
+            parent.students = []
+            if (process.env.NODE_ENV === 'development') {
+              console.warn(`[Parents] No students found for parent ${parent.name} (${parent.id})`)
+            }
           }
         } catch (e) {
-          console.error(`Failed to load students for parent ${parent.id}:`, e)
+          parent.students = []
+          if (process.env.NODE_ENV === 'development') {
+            console.error(`Failed to load students for parent ${parent.id}:`, e)
+          }
         }
       }
 
@@ -498,11 +504,6 @@ export default function ParentsPage() {
     setIsStudentLinkDialogOpen(true)
   }
 
-  const handleOpenQRDialog = (parent: Parent) => {
-    setQrParent(parent)
-    setIsQRDialogOpen(true)
-  }
-
   return (
     <AdminLayout pageTitle="親御さん管理">
       <div className="space-y-6">
@@ -514,20 +515,10 @@ export default function ParentsPage() {
               LINE通知を受信する親御さんの管理
             </p>
           </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => window.open("/parent-register", "_blank")}
-              title="親御さん向け登録ページを開く"
-            >
-              <Smartphone className="h-4 w-4 mr-2" />
-              親御さん向け登録ページ
-            </Button>
-            <Button onClick={() => setIsAddDialogOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              親御さんを追加
-            </Button>
-          </div>
+          <Button onClick={() => setIsAddDialogOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            親御さんを追加
+          </Button>
         </div>
 
         {/* エラー表示 */}
@@ -706,14 +697,6 @@ export default function ParentsPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleOpenQRDialog(parent)}
-                            title="QRコード表示"
-                          >
-                            <QrCode className="h-4 w-4" />
-                          </Button>
                           <Button
                             variant="ghost"
                             size="sm"
@@ -1062,13 +1045,6 @@ export default function ParentsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* QRコードダイアログ */}
-      <ParentQRDialog
-        open={isQRDialogOpen}
-        onOpenChange={setIsQRDialogOpen}
-        parent={qrParent}
-      />
     </AdminLayout>
   )
 }

@@ -11,6 +11,33 @@ import { getPointSettings } from "@/lib/point-settings-utils";
 import { sendLineNotificationToParents } from "@/lib/line-notification-utils";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { getStudentAccessTime, isPastEndTime } from "@/lib/access-time-utils";
+import { requireAdminApi } from "@/lib/auth-helpers";
+
+function requireKioskSecret(req: Request): { ok: true } | { ok: false; response: NextResponse } {
+  const secret = process.env.KIOSK_API_SECRET;
+  if (!secret) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { ok: false, error: "KIOSK_API_SECRET が設定されていません" },
+        { status: 500 }
+      ),
+    };
+  }
+
+  const provided = req.headers.get("x-kiosk-secret");
+  if (!provided || provided !== secret) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { ok: false, error: "認証に失敗しました" },
+        { status: 401 }
+      ),
+    };
+  }
+
+  return { ok: true };
+}
 
 // 入退室ログ一覧取得
 export async function GET(req: Request) {
@@ -29,6 +56,11 @@ export async function GET(req: Request) {
         { ok: false, error: "SITE_ID が .env.local に設定されていません" },
         { status: 500 }
       );
+    }
+
+    const { admin, response } = await requireAdminApi();
+    if (!admin) {
+      return response;
     }
 
     const supabase = getSupabaseAdmin();
@@ -105,6 +137,11 @@ export async function GET(req: Request) {
 // 入退室ログ作成
 export async function POST(req: Request) {
   try {
+    const kioskAuth = requireKioskSecret(req);
+    if (!kioskAuth.ok) {
+      return kioskAuth.response;
+    }
+
     console.log(`[AccessLogs] POST request received`);
     const body = await req.json();
     const { studentId, cardId, deviceId, eventType, notificationStatus } = body as {
@@ -538,4 +575,3 @@ async function checkAndProcessAutoExit(siteId: string): Promise<void> {
     console.error("[AutoExit] Error in checkAndProcessAutoExit:", errorMessage);
   }
 }
-

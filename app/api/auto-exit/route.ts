@@ -2,6 +2,32 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { getStudentAccessTime, isPastEndTime } from "@/lib/access-time-utils";
 
+function requireCronSecret(req: Request): { ok: true } | { ok: false; response: NextResponse } {
+  const secret = process.env.CRON_API_SECRET;
+  if (!secret) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { ok: false, error: "CRON_API_SECRET が設定されていません" },
+        { status: 500 }
+      ),
+    };
+  }
+
+  const provided = req.headers.get("x-cron-secret");
+  if (!provided || provided !== secret) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { ok: false, error: "認証に失敗しました" },
+        { status: 401 }
+      ),
+    };
+  }
+
+  return { ok: true };
+}
+
 /**
  * POST /api/auto-exit
  * 開放時間終了時刻を過ぎた未退室ユーザーを自動的に退室させる
@@ -11,6 +37,11 @@ import { getStudentAccessTime, isPastEndTime } from "@/lib/access-time-utils";
  */
 export async function POST(req: Request) {
   try {
+    const cronAuth = requireCronSecret(req);
+    if (!cronAuth.ok) {
+      return cronAuth.response;
+    }
+
     const siteId = process.env.SITE_ID;
 
     if (!siteId) {
@@ -165,8 +196,13 @@ export async function POST(req: Request) {
  * GET /api/auto-exit
  * 自動退室が必要なユーザー数を確認（デバッグ用）
  */
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const cronAuth = requireCronSecret(req);
+    if (!cronAuth.ok) {
+      return cronAuth.response;
+    }
+
     const siteId = process.env.SITE_ID;
 
     if (!siteId) {
@@ -256,4 +292,3 @@ export async function GET() {
     );
   }
 }
-

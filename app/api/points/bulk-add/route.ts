@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { addPoints } from "@/lib/point-utils";
+import { requireAdminApi } from "@/lib/auth-helpers";
 
 // 一括ポイント付与
 export async function POST(req: Request) {
@@ -20,6 +21,11 @@ export async function POST(req: Request) {
         { ok: false, error: "SITE_ID が .env.local に設定されていません" },
         { status: 500 }
       );
+    }
+
+    const { admin, response } = await requireAdminApi();
+    if (!admin) {
+      return response;
     }
 
     // 新形式（assignments）を優先
@@ -57,13 +63,26 @@ export async function POST(req: Request) {
         continue;
       }
 
+      // ポイント数の上限チェック（10000pt）
+      const MAX_POINTS_PER_TRANSACTION = 10000;
+      if (studentPoints > MAX_POINTS_PER_TRANSACTION) {
+        results.push({
+          studentId,
+          success: false,
+          error: `ポイント数は${MAX_POINTS_PER_TRANSACTION}以下である必要があります`,
+        });
+        continue;
+      }
+
       try {
         const success = await addPoints(
           siteId,
           studentId,
           studentPoints,
           "admin_add",
-          studentDescription || description || "一括ポイント付与"
+          studentDescription || description || "一括ポイント付与",
+          undefined,
+          admin.id
         );
 
         results.push({

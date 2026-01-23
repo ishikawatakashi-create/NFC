@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
+import { requireAdminApi } from "@/lib/auth-helpers";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 // 管理ユーザー更新
 export async function PUT(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
     const body = await req.json();
     const { firstName, lastName, employmentType } = body as {
       firstName?: string;
@@ -22,6 +23,11 @@ export async function PUT(
         { ok: false, error: "SITE_ID が .env.local に設定されていません" },
         { status: 500 }
       );
+    }
+
+    const { admin, response } = await requireAdminApi();
+    if (!admin) {
+      return response;
     }
 
     if (!firstName || !lastName || !employmentType) {
@@ -85,10 +91,10 @@ export async function PUT(
 // 管理ユーザー削除
 export async function DELETE(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
 
     const siteId = process.env.SITE_ID;
 
@@ -97,6 +103,11 @@ export async function DELETE(
         { ok: false, error: "SITE_ID が .env.local に設定されていません" },
         { status: 500 }
       );
+    }
+
+    const { admin, response } = await requireAdminApi();
+    if (!admin) {
+      return response;
     }
 
     // サービスロールキーを使用してRLSをバイパス

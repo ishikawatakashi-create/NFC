@@ -1,10 +1,9 @@
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  // サービスロールキーを使用してRLSをバイパス
+  // ポイント設定の取得は常にサーバーサイドで行われるため安全
+  return getSupabaseAdmin();
 }
 
 /**
