@@ -48,9 +48,8 @@ export async function GET(req: Request) {
         points,
         description,
         reference_id,
-        created_at,
-        students!inner(id, name)
-      `, { count: "exact" })
+        created_at
+      `, { count: "estimated" })
       .eq("site_id", siteId)
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
@@ -105,9 +104,8 @@ export async function GET(req: Request) {
             reference_id,
             created_at,
             admin_id,
-            students!inner(id, name),
             admins:admin_id(first_name, last_name)
-          `, { count: "exact" })
+          `, { count: "estimated" })
           .eq("site_id", siteId)
           .order("created_at", { ascending: false })
           .range(offset, offset + limit - 1);
