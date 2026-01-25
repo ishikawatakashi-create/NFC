@@ -1006,10 +1006,12 @@ export default function StudentDetailPage({
               </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setConsumePointsDialogOpen(false)}>
+              <Button variant="outline" onClick={() => setConsumePointsDialogOpen(false)} disabled={isConsumingPoints}>
                 キャンセル
               </Button>
-              <Button onClick={handleConsumePoints}>消費</Button>
+              <Button onClick={handleConsumePoints} disabled={isConsumingPoints}>
+                {isConsumingPoints ? "消費中..." : "消費"}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

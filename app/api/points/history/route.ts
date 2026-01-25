@@ -95,7 +95,7 @@ export async function GET(req: Request) {
     // admin_idカラムが存在する場合は、再度取得を試みる
     if (!error && data) {
       try {
-        const queryWithAdmin = supabase
+        let queryWithAdmin = supabase
           .from("point_transactions")
           .select(`
             id,
@@ -112,20 +112,21 @@ export async function GET(req: Request) {
           .order("created_at", { ascending: false })
           .range(offset, offset + limit - 1);
         
+        // フィルタを適用（クエリビルダーはイミュータブルなので再代入が必要）
         if (studentId) {
-          queryWithAdmin.eq("student_id", studentId);
+          queryWithAdmin = queryWithAdmin.eq("student_id", studentId);
         }
         if (startDate) {
-          queryWithAdmin.gte("created_at", startDate);
+          queryWithAdmin = queryWithAdmin.gte("created_at", startDate);
         }
         if (endDate) {
-          queryWithAdmin.lte("created_at", endDate);
+          queryWithAdmin = queryWithAdmin.lte("created_at", endDate);
         }
         if (transactionType && transactionType !== "all") {
-          queryWithAdmin.eq("transaction_type", transactionType);
+          queryWithAdmin = queryWithAdmin.eq("transaction_type", transactionType);
         }
         if (searchQuery && searchQuery.trim()) {
-          queryWithAdmin.ilike("description", `%${searchQuery.trim()}%`);
+          queryWithAdmin = queryWithAdmin.ilike("description", `%${searchQuery.trim()}%`);
         }
 
         const result = await queryWithAdmin;

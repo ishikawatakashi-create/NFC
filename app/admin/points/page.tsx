@@ -193,6 +193,7 @@ export default function PointsPage() {
 
   async function loadStudentHistory(studentId: string) {
     setIsLoadingHistory(true)
+    setStudentPointTransactions([]) // 前回のデータをクリア
     try {
       const res = await fetch(`/api/points/history?studentId=${encodeURIComponent(studentId)}`, {
         cache: "no-store",
@@ -201,9 +202,21 @@ export default function PointsPage() {
 
       if (res.ok && data?.ok && data?.transactions) {
         setStudentPointTransactions(data.transactions)
+      } else {
+        console.error("Failed to load student history:", data?.error)
+        toast({
+          title: "エラー",
+          description: data?.error || "履歴の読み込みに失敗しました",
+          variant: "destructive",
+        })
       }
     } catch (e: any) {
       console.error("Failed to load student history:", e)
+      toast({
+        title: "エラー",
+        description: "履歴の読み込みに失敗しました",
+        variant: "destructive",
+      })
     } finally {
       setIsLoadingHistory(false)
     }
