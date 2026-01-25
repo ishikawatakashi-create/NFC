@@ -30,6 +30,7 @@ interface Student {
   status: StudentStatus
   class?: StudentClass
   role?: UserRole
+  has_custom_access_time?: boolean
   cardId?: string
   card_registered?: boolean
   card_active?: boolean
@@ -108,6 +109,7 @@ export default function StudentsPage() {
         card_token_id?: string | null
         last_event_type?: string | null
         last_event_timestamp?: string | null
+        has_custom_access_time?: boolean
         created_at?: string | null
       }> = data.students ?? []
 
@@ -119,6 +121,7 @@ export default function StudentsPage() {
         status: (s.status ?? "active") as StudentStatus,
         class: s.class ? (s.class as StudentClass) : undefined, // DBから取得したclassを反映
         role: s.role ? (s.role as UserRole) : "student", // デフォルトはstudent
+        has_custom_access_time: s.has_custom_access_time ?? false,
         cardId: s.card_id || undefined,
         card_registered: s.card_registered ?? false,
         card_active: s.card_active ?? false,
@@ -329,6 +332,20 @@ export default function StudentsPage() {
       notificationRecipients:
         editingStudent.notificationRecipients?.map((r) => (r.id === recipientId ? { ...r, name } : r)) || [],
     })
+  }
+
+  const handleEditRoleChange = (value: string) => {
+    if (!editingStudent) return
+    const nextRole = value as UserRole
+
+    if (editingStudent.has_custom_access_time) {
+      const confirmed = window.confirm(
+        "このユーザーは個別の開放時間が設定されています。属性を変更しても開放時間は個別設定のままです。属性のみ変更しますか？"
+      )
+      if (!confirmed) return
+    }
+
+    setEditingStudent({ ...editingStudent, role: nextRole })
   }
 
   const handleUpdateStudent = async () => {
@@ -1187,9 +1204,7 @@ export default function StudentsPage() {
                 <Label htmlFor="edit-role">属性 *</Label>
                 <Select
                   value={editingStudent.role || "student"}
-                  onValueChange={(value) =>
-                    setEditingStudent({ ...editingStudent, role: value as UserRole })
-                  }
+                  onValueChange={handleEditRoleChange}
                 >
                   <SelectTrigger id="edit-role">
                     <SelectValue />

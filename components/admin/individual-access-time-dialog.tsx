@@ -132,6 +132,47 @@ export function IndividualAccessTimeDialog({
     }
   }
 
+  async function handleClearCustomAccessTime() {
+    if (!editingStudent) return
+
+    const confirmClear = window.confirm(
+      `${editingStudent.name}さんの個別設定を解除し、属性の開放時間に戻しますか？`
+    )
+    if (!confirmClear) return
+
+    try {
+      const res = await fetch(`/api/students/${editingStudent.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          role: editingStudent.role || "student",
+          has_custom_access_time: false,
+        }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok || !data?.ok) {
+        const errorMessage = data?.error || "解除に失敗しました"
+        throw new Error(errorMessage)
+      }
+
+      toast({
+        title: "解除しました",
+        description: `${editingStudent.name}さんの個別設定を解除しました。`,
+      })
+
+      await loadStudents()
+      setEditingStudent(null)
+    } catch (e: any) {
+      toast({
+        title: "エラー",
+        description: e?.message || "解除に失敗しました",
+        variant: "destructive",
+      })
+    }
+  }
+
   function getRoleLabel(role?: string) {
     switch (role) {
       case "student":
@@ -278,6 +319,11 @@ export function IndividualAccessTimeDialog({
             <Button variant="outline" onClick={() => setEditingStudent(null)}>
               キャンセル
             </Button>
+            {editingStudent?.has_custom_access_time && (
+              <Button variant="destructive" onClick={handleClearCustomAccessTime}>
+                個別設定を解除
+              </Button>
+            )}
             <Button onClick={handleSave}>保存</Button>
           </DialogFooter>
         </DialogContent>
@@ -285,4 +331,3 @@ export function IndividualAccessTimeDialog({
     </>
   )
 }
-

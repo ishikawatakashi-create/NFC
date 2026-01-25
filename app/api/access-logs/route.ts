@@ -10,7 +10,7 @@ import {
 import { getPointSettings } from "@/lib/point-settings-utils";
 import { sendLineNotificationToParents } from "@/lib/line-notification-utils";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import { getStudentAccessTime, isPastEndTime } from "@/lib/access-time-utils";
+import { getStudentAccessTime, hasAccessWindowBetween } from "@/lib/access-time-utils";
 import { requireAdminApi } from "@/lib/auth-helpers";
 
 function requireKioskSecret(req: Request): { ok: true } | { ok: false; response: NextResponse } {
@@ -496,11 +496,14 @@ async function checkAndProcessAutoExit(siteId: string): Promise<void> {
         student.access_end_time
       );
 
-      // 終了時刻を過ぎているかチェック
-      const isPast = isPastEndTime(accessTime.end_time, currentTime);
+      const shouldExit = hasAccessWindowBetween(
+        student.last_event_timestamp,
+        currentTime,
+        accessTime.start_time,
+        accessTime.end_time
+      );
 
-      if (!isPast) {
-        // まだ開放時間内の場合はスキップ
+      if (!shouldExit) {
         continue;
       }
 

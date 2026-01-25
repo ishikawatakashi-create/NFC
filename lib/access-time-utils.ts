@@ -129,3 +129,69 @@ export function isPastEndTime(
   return isPast;
 }
 
+function parseTimeParts(timeValue: string): { hours: number; minutes: number } {
+  const timeParts = timeValue.split(":");
+  return {
+    hours: parseInt(timeParts[0], 10),
+    minutes: parseInt(timeParts[1], 10),
+  };
+}
+
+function getWindowForDate(
+  baseDate: Date,
+  startTime: string,
+  endTime: string
+): { start: Date; end: Date } {
+  const startParts = parseTimeParts(startTime);
+  const endParts = parseTimeParts(endTime);
+
+  const start = new Date(baseDate);
+  start.setHours(startParts.hours, startParts.minutes, 0, 0);
+
+  const end = new Date(baseDate);
+  end.setHours(endParts.hours, endParts.minutes, 0, 0);
+
+  if (end <= start) {
+    end.setDate(end.getDate() + 1);
+  }
+
+  return { start, end };
+}
+
+/**
+ * 最終イベント時刻と現在時刻の間に開放時間が含まれるかチェック
+ * @param lastEventTimestamp 最終イベント時刻（ISO文字列）
+ * @param currentTime 現在時刻
+ * @param startTime 開始時刻（HH:mm）
+ * @param endTime 終了時刻（HH:mm）
+ * @returns 開放時間が1回でも含まれる場合true
+ */
+export function hasAccessWindowBetween(
+  lastEventTimestamp: string | null | undefined,
+  currentTime: Date,
+  startTime: string,
+  endTime: string
+): boolean {
+  if (!lastEventTimestamp) {
+    return isPastEndTime(endTime, currentTime);
+  }
+
+  const lastEvent = new Date(lastEventTimestamp);
+  if (Number.isNaN(lastEvent.getTime())) {
+    return isPastEndTime(endTime, currentTime);
+  }
+
+  const startDay = new Date(lastEvent);
+  startDay.setHours(0, 0, 0, 0);
+  const endDay = new Date(currentTime);
+  endDay.setHours(0, 0, 0, 0);
+
+  for (let day = new Date(startDay); day <= endDay; day.setDate(day.getDate() + 1)) {
+    const { start, end } = getWindowForDate(day, startTime, endTime);
+    if (end > lastEvent && start <= currentTime) {
+      return true;
+    }
+  }
+
+  return false;
+}

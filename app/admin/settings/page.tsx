@@ -27,6 +27,7 @@ export default function SettingsPage() {
   const [entryTemplate, setEntryTemplate] = useState("[生徒名]さんが入室しました。\n時刻: [現在時刻]")
   const [exitTemplate, setExitTemplate] = useState("[生徒名]さんが退室しました。\n時刻: [現在時刻]")
   const [loading, setLoading] = useState(false)
+  const [autoExitLoading, setAutoExitLoading] = useState(false)
 
   // 初期値を読み込む
   useEffect(() => {
@@ -83,6 +84,39 @@ export default function SettingsPage() {
       })
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleAutoExitRun = async () => {
+    const confirmed = window.confirm(
+      "現在の時刻で強制退室チェックを実行します。よろしいですか？"
+    )
+    if (!confirmed) return
+
+    setAutoExitLoading(true)
+    try {
+      const res = await fetch("/api/auto-exit/manual", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      })
+      const data = await res.json()
+
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.error || "強制退室の実行に失敗しました")
+      }
+
+      toast({
+        title: "実行完了",
+        description: data.message || "強制退室チェックが完了しました。",
+      })
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "エラー",
+        description: error.message || "強制退室の実行に失敗しました",
+      })
+    } finally {
+      setAutoExitLoading(false)
     }
   }
 
@@ -151,6 +185,15 @@ export default function SettingsPage() {
                 </ul>
               </AlertDescription>
             </Alert>
+            <div className="flex justify-end">
+              <Button
+                variant="outline"
+                onClick={handleAutoExitRun}
+                disabled={autoExitLoading}
+              >
+                {autoExitLoading ? "強制退室チェック中..." : "強制退室を実行"}
+              </Button>
+            </div>
           </CardContent>
         </Card>
 

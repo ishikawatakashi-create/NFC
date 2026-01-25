@@ -69,14 +69,14 @@ export default function QuickLinksPage() {
       ]
     },
     {
-      category: "👥 公開ページ",
+      category: "👥 教室用表示（管理者ログイン前提）",
       items: [
         {
           name: "ポイント一覧",
           path: "/students",
           icon: Coins,
           color: "bg-cyan-50 hover:bg-cyan-100",
-          description: "生徒向けポイント一覧ページ（公開）"
+          description: "教室サイネージ向けポイント一覧（管理者ログイン前提）"
         },
       ]
     },
@@ -219,4 +219,3 @@ export default function QuickLinksPage() {
     </div>
   )
 }
-

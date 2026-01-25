@@ -207,8 +207,18 @@ export default function StudentDetailPage({
   }, [studentId])
 
   // 履歴を読み込む関数（ページネーション対応）
-  const loadPointTransactions = useCallback(async (reset: boolean = false) => {
+  const loadPointTransactions = useCallback(async (options: {
+    reset?: boolean
+    offset?: number
+    search?: string
+    type?: string
+  }) => {
     if (!studentId) return
+
+    const reset = options.reset ?? false
+    const offset = options.offset ?? 0
+    const search = options.search ?? ""
+    const type = options.type ?? "all"
 
     if (reset) {
       setIsPointsLoading(true)
@@ -221,14 +231,14 @@ export default function StudentDetailPage({
       const params = new URLSearchParams({
         studentId: studentId,
         limit: "50",
-        offset: reset ? "0" : historyOffset.toString(),
+        offset: offset.toString(),
       })
 
-      if (historySearchQuery.trim()) {
-        params.append("search", historySearchQuery.trim())
+      if (search.trim()) {
+        params.append("search", search.trim())
       }
-      if (historyTransactionType && historyTransactionType !== "all") {
-        params.append("type", historyTransactionType)
+      if (type && type !== "all") {
+        params.append("type", type)
       }
 
       const res = await fetch(`/api/points/history?${params.toString()}`, { cache: "no-store" })
@@ -255,7 +265,7 @@ export default function StudentDetailPage({
           setHistoryHasMore(data.pagination.hasMore || false)
           setHistoryTotal(data.pagination.total || 0)
           if (!reset) {
-            setHistoryOffset((prev) => prev + mapped.length)
+            setHistoryOffset(offset + mapped.length)
           } else {
             setHistoryOffset(mapped.length)
           }
@@ -272,20 +282,25 @@ export default function StudentDetailPage({
       setIsPointsLoading(false)
       setIsLoadingMoreHistory(false)
     }
-  }, [studentId, historySearchQuery, historyTransactionType, historyOffset, toast])
+  }, [studentId, toast])
 
   // 履歴ダイアログが開かれたときに履歴を読み込む
   useEffect(() => {
     if (pointsHistoryDialogOpen && studentId) {
       setHistorySearchQuery("")
       setHistoryTransactionType("all")
-      loadPointTransactions(true)
+      loadPointTransactions({ reset: true, offset: 0, search: "", type: "all" })
     }
   }, [pointsHistoryDialogOpen, studentId, loadPointTransactions])
 
   // 検索・フィルタ変更時に履歴を再読み込み
   const handleHistorySearch = () => {
-    loadPointTransactions(true)
+    loadPointTransactions({
+      reset: true,
+      offset: 0,
+      search: historySearchQuery,
+      type: historyTransactionType,
+    })
   }
 
   const handleHistoryTypeChange = (type: string) => {
@@ -293,7 +308,7 @@ export default function StudentDetailPage({
     setHistoryOffset(0)
     // 少し遅延させてから読み込み（状態更新を待つ）
     setTimeout(() => {
-      loadPointTransactions(true)
+      loadPointTransactions({ reset: true, offset: 0, search: historySearchQuery, type })
     }, 0)
   }
 
@@ -382,7 +397,12 @@ export default function StudentDetailPage({
 
       // ポイント履歴を再読み込み（ダイアログが開いている場合のみ）
       if (pointsHistoryDialogOpen) {
-        loadPointTransactions(true)
+        loadPointTransactions({
+          reset: true,
+          offset: 0,
+          search: historySearchQuery,
+          type: historyTransactionType,
+        })
       }
     } catch (e: any) {
       console.error("[Add Points] Exception:", e)
@@ -402,21 +422,18 @@ export default function StudentDetailPage({
     }
   }
 
-  async function handleExportStudentHistory() {
-    if (!studentId) return
+  const exportStudentHistoryUrl = studentId
+    ? `/api/points/export?${new URLSearchParams({ studentId, type: "all" }).toString()}`
+    : ""
 
+  const handleExportStudentHistory = () => {
+    if (!exportStudentHistoryUrl) return
     try {
-      const params = new URLSearchParams({
-        studentId: studentId,
-        type: "all",
-      })
-
-      const url = `/api/points/export?${params.toString()}`
-      window.open(url, "_blank")
+      window.location.href = exportStudentHistoryUrl
     } catch (e: any) {
       toast({
         title: "エラー",
-        description: "エクスポートに失敗しました",
+        description: e?.message || "エクスポートに失敗しました",
         variant: "destructive",
       })
     }
@@ -490,7 +507,12 @@ export default function StudentDetailPage({
 
       // ポイント履歴を再読み込み（ダイアログが開いている場合のみ）
       if (pointsHistoryDialogOpen) {
-        loadPointTransactions(true)
+        loadPointTransactions({
+          reset: true,
+          offset: 0,
+          search: historySearchQuery,
+          type: historyTransactionType,
+        })
       }
     } catch (e: any) {
       console.error("Consume points error:", e)
@@ -862,6 +884,7 @@ export default function StudentDetailPage({
                     size="sm"
                     className="gap-2"
                     onClick={handleExportStudentHistory}
+                    disabled={!exportStudentHistoryUrl}
                   >
                     <Download className="h-4 w-4" />
                     エクスポート
@@ -1114,7 +1137,12 @@ export default function StudentDetailPage({
                     <div className="flex justify-center py-4">
                       <Button
                         variant="outline"
-                        onClick={() => loadPointTransactions(false)}
+                        onClick={() => loadPointTransactions({
+                          reset: false,
+                          offset: historyOffset,
+                          search: historySearchQuery,
+                          type: historyTransactionType,
+                        })}
                         disabled={isLoadingMoreHistory}
                       >
                         {isLoadingMoreHistory ? (

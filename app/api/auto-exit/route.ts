@@ -1,19 +1,21 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import { getStudentAccessTime, isPastEndTime } from "@/lib/access-time-utils";
+import { getStudentAccessTime, hasAccessWindowBetween } from "@/lib/access-time-utils";
 
 function requireCronSecret(req: Request): { ok: true } | { ok: false; response: NextResponse } {
-  const secret = process.env.CRON_API_SECRET;
-  if (!secret) {
-    return {
-      ok: false,
-      response: NextResponse.json(
-        { ok: false, error: "CRON_API_SECRET が設定されていません" },
-        { status: 500 }
-      ),
-    };
+  // Vercel Cronからの呼び出しの場合は認証をスキップ
+  const vercelCronHeader = req.headers.get("x-vercel-cron");
+  if (vercelCronHeader) {
+    return { ok: true };
   }
 
+  // CRON_API_SECRETが設定されていない場合は認証をスキップ（外部Cronサービスや手動実行を許可）
+  const secret = process.env.CRON_API_SECRET;
+  if (!secret) {
+    return { ok: true };
+  }
+
+  // CRON_API_SECRETが設定されている場合は、x-cron-secretヘッダーを要求
   const provided = req.headers.get("x-cron-secret");
   if (!provided || provided !== secret) {
     return {
@@ -32,8 +34,15 @@ function requireCronSecret(req: Request): { ok: true } | { ok: false; response: 
  * POST /api/auto-exit
  * 開放時間終了時刻を過ぎた未退室ユーザーを自動的に退室させる
  * 
- * このエンドポイントはVercel Cron Jobsから定期的に呼び出されることを想定
- * 手動実行も可能（管理画面から実行ボタンを追加することも可能）
+ * このエンドポイントは以下の方法で呼び出せます：
+ * - 外部Cronサービス（cron-job.org等）から定期的に呼び出す
+ * - 手動実行（管理画面から実行ボタンを追加することも可能）
+ * - Vercel Cron Jobs（Proプランの場合）
+ * 
+ * 認証：
+ * - Vercel Cronからの呼び出し（x-vercel-cronヘッダー）: 認証不要
+ * - CRON_API_SECRETが設定されている場合: x-cron-secretヘッダーが必要
+ * - CRON_API_SECRETが設定されていない場合: 認証不要（外部Cronサービスや手動実行を許可）
  */
 export async function POST(req: Request) {
   try {
@@ -107,13 +116,18 @@ export async function POST(req: Request) {
       
       console.log(`[AutoExit] Student ${student.name} (${student.id}): hasCustomAccessTime=${student.has_custom_access_time}, customEndTime=${student.access_end_time}, accessTime.end_time=${accessTime.end_time}`);
 
-      // 終了時刻を過ぎているかチェック
-      const isPast = isPastEndTime(accessTime.end_time, currentTime);
-      console.log(`[AutoExit] Student ${student.name} (${student.id}): endTime=${accessTime.end_time}, currentTime=${currentTime.toISOString()}, isPast=${isPast}`);
+      const shouldExit = hasAccessWindowBetween(
+        student.last_event_timestamp,
+        currentTime,
+        accessTime.start_time,
+        accessTime.end_time
+      );
+      console.log(
+        `[AutoExit] Student ${student.name} (${student.id}): start=${accessTime.start_time}, end=${accessTime.end_time}, currentTime=${currentTime.toISOString()}, shouldExit=${shouldExit}`
+      );
       
-      if (!isPast) {
-        // まだ開放時間内の場合はスキップ
-        console.log(`[AutoExit] Skipping ${student.name}: still within access time`);
+      if (!shouldExit) {
+        console.log(`[AutoExit] Skipping ${student.name}: no access window since last event`);
         continue;
       }
       
@@ -266,7 +280,14 @@ export async function GET(req: Request) {
         student.access_end_time
       );
 
-      if (isPastEndTime(accessTime.end_time, currentTime)) {
+      if (
+        hasAccessWindowBetween(
+          student.last_event_timestamp,
+          currentTime,
+          accessTime.start_time,
+          accessTime.end_time
+        )
+      ) {
         needAutoExit.push({
           studentId: String(student.id),
           studentName: student.name,

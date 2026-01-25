@@ -39,8 +39,34 @@ export async function GET(req: Request) {
 
     const supabase = getSupabase();
 
-    // admin_idカラムが存在するかどうかを確認するため、まず基本カラムのみで取得を試みる
-    let query = supabase
+    const applyFilters = (query: any) => {
+      if (studentId) {
+        query = query.eq("student_id", studentId);
+      }
+
+      if (startDate) {
+        query = query.gte("created_at", startDate);
+      }
+      if (endDate) {
+        query = query.lte("created_at", endDate);
+      }
+
+      if (transactionType && transactionType !== "all") {
+        query = query.eq("transaction_type", transactionType);
+      }
+
+      if (searchQuery && searchQuery.trim()) {
+        query = query.ilike("description", `%${searchQuery.trim()}%`);
+      }
+
+      return query;
+    };
+
+    let data: any[] | null = null;
+    let error: any = null;
+    let count: number | null = null;
+
+    let queryWithAdmin = supabase
       .from("point_transactions")
       .select(`
         id,
@@ -48,36 +74,17 @@ export async function GET(req: Request) {
         points,
         description,
         reference_id,
-        created_at
+        created_at,
+        admin_id,
+        admins:admin_id(first_name, last_name)
       `, { count: "estimated" })
       .eq("site_id", siteId)
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
-    // studentIdが指定されている場合はフィルタ
-    if (studentId) {
-      query = query.eq("student_id", studentId);
-    }
+    queryWithAdmin = applyFilters(queryWithAdmin);
 
-    // 日付範囲フィルタ
-    if (startDate) {
-      query = query.gte("created_at", startDate);
-    }
-    if (endDate) {
-      query = query.lte("created_at", endDate);
-    }
-
-    // 種別フィルタ
-    if (transactionType && transactionType !== "all") {
-      query = query.eq("transaction_type", transactionType);
-    }
-
-    // 検索クエリ（説明文での部分一致検索）
-    if (searchQuery && searchQuery.trim()) {
-      query = query.ilike("description", `%${searchQuery.trim()}%`);
-    }
-
-    let { data, error, count } = await query;
+    ({ data, error, count } = await queryWithAdmin);
 
     // エラーの詳細をログに記録
     if (error) {
@@ -91,10 +98,16 @@ export async function GET(req: Request) {
       });
     }
 
-    // admin_idカラムが存在する場合は、再度取得を試みる
-    if (!error && data) {
-      try {
-        let queryWithAdmin = supabase
+    if (error && (
+      error.message?.includes("admin_id") ||
+      error.message?.includes("schema cache") ||
+      error.message?.includes("relationship") ||
+      error.message?.includes("foreign key") ||
+      error.code === "PGRST204" ||
+      error.code === "PGRST200"
+    )) {
+      const query = applyFilters(
+        supabase
           .from("point_transactions")
           .select(`
             id,
@@ -102,42 +115,14 @@ export async function GET(req: Request) {
             points,
             description,
             reference_id,
-            created_at,
-            admin_id,
-            admins:admin_id(first_name, last_name)
+            created_at
           `, { count: "estimated" })
           .eq("site_id", siteId)
           .order("created_at", { ascending: false })
-          .range(offset, offset + limit - 1);
-        
-        // フィルタを適用（クエリビルダーはイミュータブルなので再代入が必要）
-        if (studentId) {
-          queryWithAdmin = queryWithAdmin.eq("student_id", studentId);
-        }
-        if (startDate) {
-          queryWithAdmin = queryWithAdmin.gte("created_at", startDate);
-        }
-        if (endDate) {
-          queryWithAdmin = queryWithAdmin.lte("created_at", endDate);
-        }
-        if (transactionType && transactionType !== "all") {
-          queryWithAdmin = queryWithAdmin.eq("transaction_type", transactionType);
-        }
-        if (searchQuery && searchQuery.trim()) {
-          queryWithAdmin = queryWithAdmin.ilike("description", `%${searchQuery.trim()}%`);
-        }
+          .range(offset, offset + limit - 1)
+      );
 
-        const result = await queryWithAdmin;
-        if (!result.error) {
-          data = result.data;
-          count = result.count;
-        } else {
-          console.warn("[Points History] Query with admin_id failed, using basic data:", result.error);
-        }
-      } catch (e: any) {
-        // admin_idカラムが存在しない場合は、基本データのみを使用
-        console.warn("[Points History] admin_id column not available, using basic data:", e?.message || e);
-      }
+      ({ data, error, count } = await query);
     }
 
     if (error) {

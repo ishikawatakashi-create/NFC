@@ -1,6 +1,32 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
+function requireKioskSecret(req: Request): { ok: true } | { ok: false; response: NextResponse } {
+  const secret = process.env.KIOSK_API_SECRET;
+  if (!secret) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { ok: false, error: "KIOSK_API_SECRET が設定されていません" },
+        { status: 500 }
+      ),
+    };
+  }
+
+  const provided = req.headers.get("x-kiosk-secret");
+  if (!provided || provided !== secret) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { ok: false, error: "認証に失敗しました" },
+        { status: 401 }
+      ),
+    };
+  }
+
+  return { ok: true };
+}
+
 /**
  * POST /api/cards/verify
  * NFCカードから読み取ったシリアル番号を検証し、紐付けられた生徒情報を返す
@@ -10,6 +36,11 @@ import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
  */
 export async function POST(req: Request) {
   try {
+    const kioskAuth = requireKioskSecret(req);
+    if (!kioskAuth.ok) {
+      return kioskAuth.response;
+    }
+
     const body = await req.json();
     const { serialNumber, token } = body as { serialNumber?: string; token?: string };
 
@@ -183,7 +214,6 @@ function getStatusLabel(status: string): string {
       return "不明";
   }
 }
-
 
 
 

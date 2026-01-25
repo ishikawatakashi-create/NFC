@@ -9,10 +9,11 @@ import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
-import { AlertTriangle, Save, Coins, Users, Plus, Minus, Download, CheckCircle, Database, BarChart3 } from "lucide-react"
-import { useState, useEffect } from "react"
+import { AlertTriangle, Save, Coins, Users, Plus, Minus, Download, CheckCircle, Database, BarChart3, Upload } from "lucide-react"
+import { useState, useEffect, useRef } from "react"
 import { ClassBonusThresholdDialog } from "@/components/admin/class-bonus-threshold-dialog"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -83,6 +84,10 @@ export default function PointsPage() {
   const [bulkSubtractPoints, setBulkSubtractPoints] = useState<Record<string, string>>({})
   const [bulkSubtractDescription, setBulkSubtractDescription] = useState("")
   const [isBulkSubtracting, setIsBulkSubtracting] = useState(false)
+  const [pointsCsvMode, setPointsCsvMode] = useState<"all" | "by_student">("by_student")
+  const [pointsCsvFile, setPointsCsvFile] = useState<File | null>(null)
+  const [isPointsCsvImporting, setIsPointsCsvImporting] = useState(false)
+  const pointsCsvInputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
     loadPointSettings()
@@ -576,39 +581,305 @@ export default function PointsPage() {
     }
   }
 
-  async function handleExportHistory() {
+  function buildExportHistoryUrl(period: "week" | "month" | "year") {
+    const now = new Date()
+    let startDate: Date
+
+    switch (period) {
+      case "week":
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+        break
+      case "month":
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1)
+        break
+      case "year":
+        startDate = new Date(now.getFullYear(), 0, 1)
+        break
+      default:
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1)
+    }
+
+    const params = new URLSearchParams({
+      startDate: startDate.toISOString(),
+      endDate: now.toISOString(),
+      type: "all",
+    })
+
+    return `/api/points/export?${params.toString()}`
+  }
+
+  function handleExportHistory() {
     try {
-      const now = new Date()
-      let startDate: Date
-
-      switch (selectedPeriod) {
-        case "week":
-          startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-          break
-        case "month":
-          startDate = new Date(now.getFullYear(), now.getMonth(), 1)
-          break
-        case "year":
-          startDate = new Date(now.getFullYear(), 0, 1)
-          break
-        default:
-          startDate = new Date(now.getFullYear(), now.getMonth(), 1)
-      }
-
-      const params = new URLSearchParams({
-        startDate: startDate.toISOString(),
-        endDate: now.toISOString(),
-        type: "all",
-      })
-
-      const url = `/api/points/export?${params.toString()}`
-      window.open(url, "_blank")
+      window.location.href = exportHistoryUrl
     } catch (e: any) {
       toast({
         title: "エラー",
-        description: "エクスポートに失敗しました",
+        description: e?.message || "エクスポートに失敗しました",
         variant: "destructive",
       })
+    }
+  }
+
+  function parseCsvRows(text: string) {
+    const rows: string[][] = []
+    let row: string[] = []
+    let field = ""
+    let inQuotes = false
+
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i]
+      const next = text[i + 1]
+
+      if (char === '"') {
+        if (inQuotes && next === '"') {
+          field += '"'
+          i++
+        } else {
+          inQuotes = !inQuotes
+        }
+        continue
+      }
+
+      if (!inQuotes && (char === "\n" || char === "\r")) {
+        if (char === "\r" && next === "\n") {
+          i++
+        }
+        row.push(field)
+        field = ""
+        if (row.some((value) => value.trim() !== "")) {
+          rows.push(row)
+        }
+        row = []
+        continue
+      }
+
+      if (!inQuotes && char === ",") {
+        row.push(field)
+        field = ""
+        continue
+      }
+
+      field += char
+    }
+
+    row.push(field)
+    if (row.some((value) => value.trim() !== "")) {
+      rows.push(row)
+    }
+
+    return rows
+  }
+
+  function handleDownloadPointsTemplate() {
+    if (pointsCsvMode === "by_student" && students.length === 0) {
+      toast({
+        title: "エラー",
+        description: "テンプレートを作成するための生徒データがありません",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const headers =
+      pointsCsvMode === "by_student"
+        ? ["student_id", "name", "points", "description"]
+        : ["points", "description"]
+    const rows =
+      pointsCsvMode === "by_student"
+        ? students.map((student) => [student.id, student.name, "", ""])
+        : [["10", "テスト付与"]]
+    const csvContent = [
+      headers.join(","),
+      ...rows.map((row) => row.map((cell) => `"${cell}"`).join(",")),
+    ].join("\n")
+
+    const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" })
+    const link = document.createElement("a")
+    link.href = URL.createObjectURL(blob)
+    link.download = `points_bulk_template_${new Date().toISOString().split("T")[0]}.csv`
+    link.click()
+    URL.revokeObjectURL(link.href)
+  }
+
+  async function handleImportPointsCsv() {
+    if (!pointsCsvFile) return
+
+    setIsPointsCsvImporting(true)
+    try {
+      if (students.length === 0) {
+        throw new Error("ポイント付与対象の生徒がいません")
+      }
+
+      const text = await pointsCsvFile.text()
+      const rows = parseCsvRows(text)
+
+      if (rows.length < 2) {
+        throw new Error("CSVファイルが空か、ヘッダー行のみです")
+      }
+
+      const headers = rows[0].map((header) =>
+        header.trim().replace(/^\uFEFF/, "").replace(/^"|"$/g, "")
+      )
+
+      const pointsIndex = headers.findIndex((header) => header.toLowerCase() === "points" || header === "ポイント")
+      const descriptionIndex = headers.findIndex(
+        (header) => header.toLowerCase() === "description" || header === "説明"
+      )
+      const studentIdIndex = headers.findIndex(
+        (header) =>
+          header.toLowerCase() === "student_id" ||
+          header.toLowerCase() === "studentid" ||
+          header === "生徒ID"
+      )
+      const nameIndex = headers.findIndex(
+        (header) => header.toLowerCase() === "name" || header === "生徒名"
+      )
+
+      if (pointsIndex === -1) {
+        throw new Error("必須項目（points）が見つかりません")
+      }
+
+      const dataRows = rows.slice(1).filter((row) => row.some((value) => value.trim() !== ""))
+      if (dataRows.length === 0) {
+        throw new Error("CSVにデータがありません")
+      }
+
+      let assignments: Array<{ studentId: string; points: number; description?: string }> = []
+
+      if (pointsCsvMode === "all") {
+        if (dataRows.length !== 1) {
+          throw new Error("全員一括付与は1行のデータのみ対応しています")
+        }
+
+        const row = dataRows[0]
+        const pointsValue = row[pointsIndex]?.trim().replace(/^"|"$/g, "")
+        const points = parseInt(pointsValue || "", 10)
+
+        if (!pointsValue || isNaN(points) || points <= 0) {
+          throw new Error("ポイント数は1以上の数値である必要があります")
+        }
+
+        const description = descriptionIndex >= 0
+          ? row[descriptionIndex]?.trim().replace(/^"|"$/g, "")
+          : ""
+
+        assignments = students.map((student) => ({
+          studentId: student.id,
+          points,
+          description: description || undefined,
+        }))
+      } else {
+        if (studentIdIndex === -1 && nameIndex === -1) {
+          throw new Error("必須項目（student_id または name）が見つかりません")
+        }
+
+        const errors: string[] = []
+        dataRows.forEach((row, idx) => {
+          const rowNumber = idx + 2
+          const pointsValue = row[pointsIndex]?.trim().replace(/^"|"$/g, "")
+          if (!pointsValue) {
+            return
+          }
+
+          const points = parseInt(pointsValue || "", 10)
+          if (isNaN(points) || points <= 0) {
+            errors.push(`行${rowNumber}: ポイント数が無効です`)
+            return
+          }
+
+          const studentIdValue =
+            studentIdIndex >= 0 ? row[studentIdIndex]?.trim().replace(/^"|"$/g, "") : ""
+          const nameValue = nameIndex >= 0 ? row[nameIndex]?.trim().replace(/^"|"$/g, "") : ""
+
+          let student: Student | undefined
+          if (studentIdValue) {
+            student = students.find((s) => s.id === studentIdValue)
+            if (!student) {
+              errors.push(`行${rowNumber}: 生徒IDが見つかりません（${studentIdValue}）`)
+              return
+            }
+          } else if (nameValue) {
+            const matches = students.filter((s) => s.name === nameValue)
+            if (matches.length === 0) {
+              errors.push(`行${rowNumber}: 生徒名が見つかりません（${nameValue}）`)
+              return
+            }
+            if (matches.length > 1) {
+              errors.push(`行${rowNumber}: 生徒名が重複しています（${nameValue}）`)
+              return
+            }
+            student = matches[0]
+          } else {
+            errors.push(`行${rowNumber}: 生徒IDまたは生徒名が必要です`)
+            return
+          }
+
+          const description = descriptionIndex >= 0
+            ? row[descriptionIndex]?.trim().replace(/^"|"$/g, "")
+            : ""
+
+          assignments.push({
+            studentId: student.id,
+            points,
+            description: description || undefined,
+          })
+        })
+
+        if (errors.length > 0) {
+          throw new Error(errors.join("\n"))
+        }
+      }
+
+      if (assignments.length === 0) {
+        throw new Error("付与対象がありません")
+      }
+
+      const res = await fetch("/api/points/bulk-add", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assignments }),
+      })
+
+      const data = await res.json()
+
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.error || `一括ポイント付与に失敗しました（${res.status}）`)
+      }
+
+      if (data.failureCount > 0) {
+        const failedStudents = data.results
+          ?.filter((result: any) => !result.success)
+          .map((result: any) => {
+            const student = students.find((s) => s.id === result.studentId)
+            return `${student?.name || result.studentId}: ${result.error || "エラー"}`
+          })
+          .join("\n")
+
+        toast({
+          title: "一部失敗",
+          description: `${data.successCount}名に付与しましたが、${data.failureCount}名で失敗しました。\n${failedStudents || ""}`,
+          variant: "destructive",
+        })
+      } else {
+        toast({
+          title: "成功",
+          description: data.message || `${data.successCount}名にポイントを付与しました`,
+        })
+      }
+
+      setPointsCsvFile(null)
+      if (pointsCsvInputRef.current) {
+        pointsCsvInputRef.current.value = ""
+      }
+      await loadStudents()
+    } catch (e: any) {
+      toast({
+        title: "エラー",
+        description: e?.message || "CSVインポートに失敗しました",
+        variant: "destructive",
+      })
+    } finally {
+      setIsPointsCsvImporting(false)
     }
   }
 
@@ -666,6 +937,7 @@ export default function PointsPage() {
 
   const totalPoints = students.reduce((sum, s) => sum + s.current_points, 0)
   const averagePoints = students.length > 0 ? Math.round(totalPoints / students.length) : 0
+  const exportHistoryUrl = buildExportHistoryUrl(selectedPeriod)
 
   return (
     <AdminLayout pageTitle="ポイント管理" breadcrumbs={[{ label: "ポイント管理" }]}>
@@ -739,6 +1011,68 @@ export default function PointsPage() {
             </CardContent>
           </Card>
         </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>CSVインポート付与</CardTitle>
+            <CardDescription>CSVをインポートしてポイントを付与します</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1">
+                <Label>付与対象</Label>
+                <Select
+                  value={pointsCsvMode}
+                  onValueChange={(value) => {
+                    setPointsCsvMode(value as "all" | "by_student")
+                    setPointsCsvFile(null)
+                    if (pointsCsvInputRef.current) {
+                      pointsCsvInputRef.current.value = ""
+                    }
+                  }}
+                >
+                  <SelectTrigger className="w-48">
+                    <SelectValue placeholder="付与対象を選択" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">全員に付与</SelectItem>
+                    <SelectItem value="by_student">CSVで指定</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button variant="outline" size="sm" className="gap-2" onClick={handleDownloadPointsTemplate}>
+                <Download className="h-4 w-4" />
+                テンプレートDL
+              </Button>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {pointsCsvMode === "by_student"
+                ? "テンプレートに生徒一覧を出力します。points欄に数値を入れてアップロードしてください"
+                : "フォーマットは1行のみ対応（points, description）"}
+            </p>
+            <div className="space-y-2">
+              <Label htmlFor="points-csv-file">CSVファイルを選択</Label>
+              <Input
+                id="points-csv-file"
+                type="file"
+                accept=".csv"
+                ref={pointsCsvInputRef}
+                disabled={isPointsCsvImporting}
+                onChange={(e) => setPointsCsvFile(e.target.files?.[0] || null)}
+              />
+            </div>
+            <div className="flex justify-end">
+              <Button
+                onClick={handleImportPointsCsv}
+                disabled={!pointsCsvFile || isPointsCsvImporting}
+                className="gap-2"
+              >
+                <Upload className="h-4 w-4" />
+                {isPointsCsvImporting ? "付与中..." : "CSVで一括付与"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* ポイント推移グラフ */}
         <Card>
@@ -819,8 +1153,8 @@ export default function PointsPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={handleExportHistory}
                   className="gap-2"
+                  onClick={handleExportHistory}
                 >
                   <Download className="h-4 w-4" />
                   履歴エクスポート
@@ -1371,4 +1705,3 @@ export default function PointsPage() {
     </AdminLayout>
   )
 }
-

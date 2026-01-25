@@ -334,8 +334,65 @@ export async function POST(req: Request) {
           const messageText = event.message.text;
           console.log(`[LineWebhook] Text message: ${messageText}`);
 
-          // 必要に応じて自動応答を実装
-          // 例: "登録"というメッセージで親御さんとLINEアカウントを紐づけるなど
+          // 紐づけ開始コマンド（「紐づけ」「登録」「設定」など）
+          const linkCommands = ["紐づけ", "紐付け", "登録", "設定", "カード登録", "通知登録"];
+          const normalizedMessage = messageText.trim();
+          
+          if (linkCommands.some(cmd => normalizedMessage.includes(cmd))) {
+            console.log(`[LineWebhook] Link command detected: ${normalizedMessage}`);
+            
+            // 一時トークンを生成
+            const token = crypto.randomBytes(32).toString("hex");
+            const expiresAt = new Date();
+            expiresAt.setHours(expiresAt.getHours() + 1); // 1時間有効
+            
+            // トークンをデータベースに保存
+            const { error: tokenError } = await supabase
+              .from("line_link_tokens")
+              .insert({
+                site_id: siteId,
+                line_user_id: lineUserId,
+                token: token,
+                expires_at: expiresAt.toISOString(),
+              });
+            
+            if (tokenError) {
+              console.error(`[LineWebhook] Failed to create link token:`, tokenError);
+            } else {
+              // URLを生成（本番環境のURLを環境変数から取得、なければデフォルト）
+              const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL 
+                ? `https://${process.env.VERCEL_URL}` 
+                : "http://localhost:3000";
+              const linkUrl = `${baseUrl}/link-card?token=${token}`;
+              
+              // LINEメッセージを送信
+              const lineChannelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+              if (lineChannelAccessToken) {
+                const response = await fetch("https://api.line.me/v2/bot/message/reply", {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${lineChannelAccessToken}`,
+                  },
+                  body: JSON.stringify({
+                    replyToken: event.replyToken,
+                    messages: [
+                      {
+                        type: "text",
+                        text: `カード紐づけを開始します。\n\n以下のURLにアクセスして、お子様のNFCカードをタッチしてください。\n\n${linkUrl}\n\n※このURLは1時間有効です。`,
+                      },
+                    ],
+                  }),
+                });
+                
+                if (!response.ok) {
+                  console.error(`[LineWebhook] Failed to send reply message:`, await response.text());
+                } else {
+                  console.log(`[LineWebhook] Sent link URL to ${lineUserId}`);
+                }
+              }
+            }
+          }
         }
       }
     }
