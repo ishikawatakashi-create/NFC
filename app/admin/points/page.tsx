@@ -153,7 +153,7 @@ export default function PointsPage() {
               const rankingMap = new Map(
                 rankingData.rankings.map((r: any) => [r.id, r.monthlyPoints])
               )
-              studentsWithPoints = studentsWithPoints.map((student) => ({
+              studentsWithPoints = studentsWithPoints.map((student: Student) => ({
                 ...student,
                 monthly_points: rankingMap.get(student.id) || 0,
               }))
@@ -162,7 +162,7 @@ export default function PointsPage() {
               )
             } else {
               // フォールバック: 各生徒のポイントを0に設定
-              studentsWithPoints = studentsWithPoints.map((student) => ({
+              studentsWithPoints = studentsWithPoints.map((student: Student) => ({
                 ...student,
                 monthly_points: 0,
               }))
@@ -170,7 +170,7 @@ export default function PointsPage() {
           } catch (e) {
             console.error("Failed to load monthly ranking:", e)
             // フォールバック: 各生徒のポイントを0に設定
-            studentsWithPoints = studentsWithPoints.map((student) => ({
+            studentsWithPoints = studentsWithPoints.map((student: Student) => ({
               ...student,
               monthly_points: 0,
             }))
