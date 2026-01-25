@@ -115,7 +115,7 @@ export default function StudentDetailPage({
         }
 
         // ユーザー情報を取得
-        const res = await fetch(`/api/students/${studentId}`, { cache: "no-store" })
+        const res = await fetch(`/api/students/${studentId as string}`, { cache: "no-store" })
         const data = await res.json()
 
         if (!res.ok || !data?.ok) {
@@ -179,9 +179,10 @@ export default function StudentDetailPage({
     if (!studentId) return
 
     async function loadAccessLogs() {
+      const currentStudentId = studentId
       setIsLogsLoading(true)
       try {
-        const res = await fetch(`/api/access-logs?studentId=${encodeURIComponent(studentId)}`, { cache: "no-store" })
+        const res = await fetch(`/api/access-logs?studentId=${encodeURIComponent(currentStudentId)}`, { cache: "no-store" })
         const data = await res.json()
 
         if (res.ok && data?.ok && data?.logs) {
@@ -229,7 +230,7 @@ export default function StudentDetailPage({
 
     try {
       const params = new URLSearchParams({
-        studentId: studentId,
+        studentId: studentId as string,
         limit: "50",
         offset: offset.toString(),
       })
@@ -385,7 +386,7 @@ export default function StudentDetailPage({
       setAddPointsDescription("")
 
       // 生徒情報を再読み込み
-      const studentRes = await fetch(`/api/students/${studentId}`, { cache: "no-store" })
+      const studentRes = await fetch(`/api/students/${studentId as string}`, { cache: "no-store" })
       const studentData = await studentRes.json()
       if (studentRes.ok && studentData?.ok && studentData?.student) {
         const apiStudent = studentData.student
@@ -423,7 +424,7 @@ export default function StudentDetailPage({
   }
 
   const exportStudentHistoryUrl = studentId
-    ? `/api/points/export?${new URLSearchParams({ studentId, type: "all" }).toString()}`
+    ? `/api/points/export?${new URLSearchParams({ studentId: studentId as string, type: "all" }).toString()}`
     : ""
 
   const handleExportStudentHistory = () => {
@@ -495,7 +496,7 @@ export default function StudentDetailPage({
       setConsumePointsDescription("")
 
       // 生徒情報を再読み込み
-      const studentRes = await fetch(`/api/students/${studentId}`, { cache: "no-store" })
+      const studentRes = await fetch(`/api/students/${studentId as string}`, { cache: "no-store" })
       const studentData = await studentRes.json()
       if (studentRes.ok && studentData?.ok && studentData?.student) {
         const apiStudent = studentData.student
