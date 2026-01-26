@@ -219,18 +219,38 @@ export async function POST(req: Request) {
                 } else {
                   console.log(`[LineWebhook] Token created successfully: ${token.substring(0, 10)}...`);
                   
-                  // URLを生成（本番環境のURLを環境変数から取得、なければデフォルト）
-                  const baseUrl = env.NEXT_PUBLIC_BASE_URL || (env.VERCEL_URL 
-                    ? `https://${env.VERCEL_URL}` 
-                    : "http://localhost:3001");
+                  // URLを生成（本番環境のURLを環境変数から取得）
+                  // VERCEL_URLはプレビュー環境のURLになる可能性があるため、NEXT_PUBLIC_BASE_URLを優先
+                  // プレビュー環境のURL（-xxx-xxx.vercel.app）は認証が必要な場合があるため、本番URLを使用
+                  let baseUrl = env.NEXT_PUBLIC_BASE_URL;
+                  
+                  // NEXT_PUBLIC_BASE_URLが設定されていない場合、VERCEL_URLから本番URLを推測
+                  if (!baseUrl && env.VERCEL_URL) {
+                    // プレビュー環境のURL（例: xxx-xxx-xxx.vercel.app）を本番URLに変換
+                    // プロジェクト名から本番URLを推測（実際の本番URLに置き換える必要がある）
+                    const vercelUrl = env.VERCEL_URL;
+                    // プレビュー環境のURLの場合は警告を出す
+                    if (vercelUrl.includes('-') && vercelUrl.includes('.vercel.app')) {
+                      console.warn(`[LineWebhook] Using preview URL: ${vercelUrl}. Please set NEXT_PUBLIC_BASE_URL to production URL.`);
+                    }
+                    baseUrl = `https://${vercelUrl}`;
+                  }
+                  
+                  if (!baseUrl) {
+                    console.error("[LineWebhook] NEXT_PUBLIC_BASE_URL is not set. Cannot generate URLs.");
+                    // エラーを返さず、デフォルトURLを使用（開発環境用）
+                    baseUrl = "http://localhost:3001";
+                  }
+                  
                   const linkUrl = `${baseUrl}/link-card?token=${token}`;
                   
                   // QRコード画像のURLを生成
+                  // LINE Messaging APIのImage Messageには、HTTPSで公開アクセス可能なURLが必要
                   const qrCodeUrl = `${baseUrl}/api/line/qr-code?url=${encodeURIComponent(linkUrl)}`;
                   
                   console.log(`[LineWebhook] Generated link URL: ${linkUrl}`);
                   console.log(`[LineWebhook] QR code URL: ${qrCodeUrl}`);
-                  console.log(`[LineWebhook] Base URL from env: ${env.NEXT_PUBLIC_BASE_URL || env.VERCEL_URL || "localhost:3001"}`);
+                  console.log(`[LineWebhook] Base URL: ${baseUrl}`);
                   
                   // LINEメッセージを送信
                   const lineChannelAccessToken = env.LINE_CHANNEL_ACCESS_TOKEN;
@@ -242,6 +262,12 @@ export async function POST(req: Request) {
                     console.log(`[LineWebhook] Access token length: ${lineChannelAccessToken.length}`);
                     
                     try {
+                      // LINE Messaging APIのImage Messageには、HTTPSで公開アクセス可能なURLが必要
+                      // プレビュー環境のURLは認証が必要な場合があるため、本番URLを使用する必要がある
+                      // QRコード画像のURLが正しく生成されているか確認
+                      console.log(`[LineWebhook] QR code image URL: ${qrCodeUrl}`);
+                      console.log(`[LineWebhook] QR code URL is HTTPS: ${qrCodeUrl.startsWith('https://')}`);
+                      
                       const replyBody = {
                         replyToken: event.replyToken,
                         messages: [
