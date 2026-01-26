@@ -24,15 +24,6 @@ function requireKioskSecret(req: Request): { ok: true } | { ok: false; response:
 
   const provided = req.headers.get("x-kiosk-secret");
   
-  // デバッグログ（本番環境では削除推奨）
-  console.log('[KioskAuth] Secret check:', {
-    hasSecret: !!secret,
-    secretLength: secret?.length,
-    provided: provided ? `${provided.substring(0, 10)}...` : 'null',
-    providedLength: provided?.length,
-    match: provided === secret,
-  });
-  
   if (!provided || provided !== secret) {
     return {
       ok: false,

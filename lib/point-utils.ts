@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { POINT_CONSTANTS } from "@/lib/constants";
 
 function getSupabase() {
   // サービスロールキーを使用してRLSをバイパス
@@ -42,8 +43,8 @@ export async function getStudentBonusThreshold(
     }
   }
 
-  // デフォルト値（設定されていない場合は10回）
-  return 10;
+  // デフォルト値（設定されていない場合）
+  return POINT_CONSTANTS.DEFAULT_BONUS_THRESHOLD;
 }
 
 /**
@@ -72,8 +73,8 @@ export async function getStudentBonusPoints(
     }
   }
 
-  // デフォルト値（設定されていない場合は3点）
-  return 3;
+  // デフォルト値（設定されていない場合）
+  return POINT_CONSTANTS.DEFAULT_BONUS_POINTS;
 }
 
 /**
@@ -289,11 +290,12 @@ export async function addPoints(
       .select("id")
       .single();
 
-    // admin_idカラムが存在しない場合のエラー（スキーマキャッシュの問題）を処理
+    // admin_idカラムが存在しない場合のエラーを処理
+    // PGRST204: 列が見つからないエラー
+    // 42703: PostgreSQL の "undefined column" エラー
     if (transactionError && adminId && (
-      transactionError.message?.includes("admin_id") || 
-      transactionError.message?.includes("schema cache") ||
-      transactionError.code === "PGRST204"
+      transactionError.code === "PGRST204" ||
+      transactionError.code === "42703"
     )) {
       if (process.env.NODE_ENV === 'development') {
         console.warn(`[Points] admin_id column not available, retrying without admin_id for student ${studentId}`);
@@ -526,11 +528,12 @@ export async function consumePoints(
       .select("id")
       .single();
 
-    // admin_idカラムが存在しない場合のエラー（スキーマキャッシュの問題）を処理
+    // admin_idカラムが存在しない場合のエラーを処理
+    // PGRST204: 列が見つからないエラー
+    // 42703: PostgreSQL の "undefined column" エラー
     if (transactionError && adminId && (
-      transactionError.message?.includes("admin_id") || 
-      transactionError.message?.includes("schema cache") ||
-      transactionError.code === "PGRST204"
+      transactionError.code === "PGRST204" ||
+      transactionError.code === "42703"
     )) {
       if (process.env.NODE_ENV === 'development') {
         console.warn(`[Points] admin_id column not available, retrying without admin_id for student ${studentId}`);

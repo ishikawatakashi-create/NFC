@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Plus, Download, Search, Eye, UserPlus, Pencil, Trash2, CreditCard, Upload, FileDown } from "lucide-react"
+import { NFC_CONSTANTS } from "@/lib/constants"
 
 type StudentStatus = "active" | "suspended" | "withdrawn" | "graduated" | "disabled"
 type StudentClass = "kindergarten" | "beginner" | "challenger" | "creator" | "innovator"
@@ -509,13 +510,13 @@ export default function StudentsPage() {
 
       let isProcessing = false // 重複処理を防ぐフラグ
 
-      // タイムアウト設定（20秒）
+      // タイムアウト設定
       const timeoutId = setTimeout(() => {
         if (!isProcessing) {
           setNfcStatus("error")
           setNfcError("タイムアウトしました。もう一度お試しください。\n※ カードは1-2秒タッチして離してください。")
         }
-      }, 20000)
+      }, NFC_CONSTANTS.REGISTER_TIMEOUT)
 
       // カード処理の共通ハンドラ
       const processCard = async (serialNumber: string) => {

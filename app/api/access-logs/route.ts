@@ -12,6 +12,7 @@ import { sendLineNotificationToParents } from "@/lib/line-notification-utils";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { getStudentAccessTime, hasAccessWindowBetween } from "@/lib/access-time-utils";
 import { requireAdminApi } from "@/lib/auth-helpers";
+import { AUTO_EXIT_CONSTANTS } from "@/lib/constants";
 
 function requireKioskSecret(req: Request): { ok: true } | { ok: false; response: NextResponse } {
   const secret = process.env.KIOSK_API_SECRET;
@@ -35,15 +36,6 @@ function requireKioskSecret(req: Request): { ok: true } | { ok: false; response:
   }
 
   const provided = req.headers.get("x-kiosk-secret");
-  
-  // デバッグログ（本番環境では削除推奨）
-  console.log('[KioskAuth] Secret check:', {
-    hasSecret: !!secret,
-    secretLength: secret?.length,
-    provided: provided ? `${provided.substring(0, 10)}...` : 'null',
-    providedLength: provided?.length,
-    match: provided === secret,
-  });
   
   if (!provided || provided !== secret) {
     return {
@@ -447,9 +439,12 @@ export async function POST(req: Request) {
 
     // 入退室処理が成功した後、非同期で自動退室チェックを実行
     // レスポンス時間への影響を最小限にするため、awaitしない
-    checkAndProcessAutoExit(siteId).catch((error) => {
-      console.error("[AutoExit] Error in background auto-exit check:", error);
-    });
+    // 5分に1回のみ実行（パフォーマンス最適化）
+    if (shouldRunAutoExitCheck()) {
+      checkAndProcessAutoExit(siteId).catch((error) => {
+        console.error("[AutoExit] Error in background auto-exit check:", error);
+      });
+    }
 
     return NextResponse.json({
       ok: true,
@@ -470,10 +465,29 @@ export async function POST(req: Request) {
   }
 }
 
+// 自動退室チェックの最終実行時刻（メモリ内で管理）
+let lastAutoExitCheckTime = 0;
+
+/**
+ * 自動退室チェックを実行すべきか判定
+ * 最後のチェックから設定された間隔以上経過している場合のみtrue
+ */
+function shouldRunAutoExitCheck(): boolean {
+  const now = Date.now();
+  
+  if (now - lastAutoExitCheckTime >= AUTO_EXIT_CONSTANTS.CHECK_INTERVAL) {
+    lastAutoExitCheckTime = now;
+    return true;
+  }
+  return false;
+}
+
 /**
  * 自動退室チェックと処理（非同期実行）
  * 入退室処理のたびに、開放時間終了時刻を過ぎた未退室ユーザーを自動的に退室させる
  * Vercel無料プランでも動作するように、Cron設定なしで実装
+ * 
+ * パフォーマンス最適化：5分に1回のみ実行
  */
 async function checkAndProcessAutoExit(siteId: string): Promise<void> {
   try {
