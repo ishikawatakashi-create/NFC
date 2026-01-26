@@ -93,6 +93,9 @@ export default function StudentDetailPage({
   const [qrCodeDialogOpen, setQrCodeDialogOpen] = useState(false)
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null)
   const [isGeneratingQr, setIsGeneratingQr] = useState(false)
+  const [linkQrCodeDialogOpen, setLinkQrCodeDialogOpen] = useState(false)
+  const [linkQrCodeDataUrl, setLinkQrCodeDataUrl] = useState<string | null>(null)
+  const [isGeneratingLinkQr, setIsGeneratingLinkQr] = useState(false)
 
   useEffect(() => {
     async function getParams() {
@@ -725,6 +728,86 @@ export default function StudentDetailPage({
     link.click()
   }
 
+  const generateLinkQrCode = async () => {
+    if (!student) {
+      console.error("[LinkQRCode] Student is null")
+      toast({
+        title: "エラー",
+        description: "生徒情報が取得できませんでした",
+        variant: "destructive",
+      })
+      return
+    }
+    
+    console.log("[LinkQRCode] Starting QR code generation for student:", student.id)
+    setIsGeneratingLinkQr(true)
+    
+    try {
+      // LINE公式アカウントのURLを取得
+      // Next.jsでは、NEXT_PUBLIC_で始まる環境変数はクライアント側で利用可能
+      const lineOfficialAccountUrl = process.env.NEXT_PUBLIC_LINE_OFFICIAL_ACCOUNT_URL
+      
+      console.log("[LinkQRCode] LINE Official Account URL:", lineOfficialAccountUrl || "not set")
+      
+      if (!lineOfficialAccountUrl) {
+        console.error("[LinkQRCode] LINE Official Account URL is not set")
+        console.error("[LinkQRCode] Available env vars:", Object.keys(process.env).filter(k => k.startsWith('NEXT_PUBLIC_')))
+        toast({
+          title: "エラー",
+          description: "LINE公式アカウントのURLが設定されていません。\n\n設定方法:\n1. .env.localファイルに以下を追加:\n   NEXT_PUBLIC_LINE_OFFICIAL_ACCOUNT_URL=https://line.me/R/ti/p/@your-account\n2. 開発サーバーを再起動",
+          variant: "destructive",
+          duration: 10000, // 10秒間表示
+        })
+        setIsGeneratingLinkQr(false)
+        return
+      }
+      
+      // QRコードには、LINE公式アカウントのURLを含める
+      // 親御さんがこのQRコードを読み取ると、LINE公式アカウントに遷移し、「紐づけ」とメッセージを送信できる
+      const qrCodeUrl = lineOfficialAccountUrl
+      
+      console.log("[LinkQRCode] Generating QR code for URL:", qrCodeUrl)
+      
+      // QRコードを生成
+      const QRCode = (await import("qrcode")).default
+      console.log("[LinkQRCode] QRCode module loaded")
+      
+      const dataUrl = await QRCode.toDataURL(qrCodeUrl, {
+        width: 400,
+        margin: 2,
+        color: {
+          dark: "#000000",
+          light: "#FFFFFF",
+        },
+      })
+      
+      console.log("[LinkQRCode] QR code generated successfully, dataUrl length:", dataUrl.length)
+      setLinkQrCodeDataUrl(dataUrl)
+      setLinkQrCodeDialogOpen(true)
+      console.log("[LinkQRCode] Dialog opened")
+    } catch (error: any) {
+      console.error("[LinkQRCode] Error generating QR code:", error)
+      console.error("[LinkQRCode] Error stack:", error?.stack)
+      toast({
+        title: "エラー",
+        description: error?.message || "紐づけ用QRコードの生成に失敗しました",
+        variant: "destructive",
+      })
+    } finally {
+      setIsGeneratingLinkQr(false)
+      console.log("[LinkQRCode] Finished")
+    }
+  }
+
+  const downloadLinkQrCode = () => {
+    if (!linkQrCodeDataUrl || !student) return
+    
+    const link = document.createElement("a")
+    link.download = `${student.name}_紐づけ用QRコード.png`
+    link.href = linkQrCodeDataUrl
+    link.click()
+  }
+
   if (isLoading) {
     return (
       <AdminLayout
@@ -839,6 +922,46 @@ export default function StudentDetailPage({
             </div>
           </CardContent>
         </Card>
+
+        {/* LINE紐づけ用QRコード */}
+        {student.role === "student" && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <QrCode className="h-5 w-5" />
+                LINE紐づけ用QRコード
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="rounded-lg border border-border p-4 bg-muted/50">
+                <p className="text-sm text-muted-foreground mb-4">
+                  このQRコードを印刷して、NFCカードと一緒に親御さんにお渡しください。
+                  <br />
+                  親御さんがQRコードを読み取ると、LINE公式アカウントに遷移し、「紐づけ」とメッセージを送信して紐づけを行えます。
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    onClick={generateLinkQrCode}
+                    disabled={isGeneratingLinkQr}
+                    className="gap-2"
+                  >
+                    {isGeneratingLinkQr ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        生成中...
+                      </>
+                    ) : (
+                      <>
+                        <QrCode className="h-4 w-4" />
+                        紐づけ用QRコードを生成
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* 最終イベント情報 */}
         <Card>
@@ -1223,7 +1346,7 @@ export default function StudentDetailPage({
           </DialogContent>
         </Dialog>
 
-        {/* QRコード表示ダイアログ */}
+        {/* QRコード表示ダイアログ（カードID用） */}
         <Dialog open={qrCodeDialogOpen} onOpenChange={setQrCodeDialogOpen}>
           <DialogContent className="max-w-md">
             <DialogHeader>
@@ -1256,6 +1379,53 @@ export default function StudentDetailPage({
                 閉じる
               </Button>
               <Button onClick={downloadQrCode} disabled={!qrCodeDataUrl}>
+                <Download className="h-4 w-4 mr-2" />
+                ダウンロード
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* 紐づけ用QRコード表示ダイアログ */}
+        <Dialog open={linkQrCodeDialogOpen} onOpenChange={setLinkQrCodeDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>LINE紐づけ用QRコード</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              {linkQrCodeDataUrl && (
+                <div className="flex flex-col items-center space-y-4">
+                  <div className="border-2 border-border rounded-lg p-4 bg-white">
+                    <img
+                      src={linkQrCodeDataUrl}
+                      alt="LINE紐づけ用QRコード"
+                      className="w-full max-w-[300px] h-auto"
+                    />
+                  </div>
+                  {student && (
+                    <div className="text-center space-y-2">
+                      <p className="text-sm font-medium">{student.name}さん</p>
+                      <p className="text-xs text-muted-foreground">LINE紐づけ用</p>
+                    </div>
+                  )}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-900 space-y-2">
+                    <p className="font-medium">使用方法：</p>
+                    <ol className="list-decimal list-inside space-y-1 ml-2">
+                      <li>このQRコードを印刷して、NFCカードと一緒に親御さんにお渡しください</li>
+                      <li>親御さんがスマートフォンのカメラでQRコードを読み取ります</li>
+                      <li>LINE公式アカウントに遷移します（友だち追加が必要な場合は先に友だち追加）</li>
+                      <li>LINE公式アカウントに「紐づけ」とメッセージを送信します</li>
+                      <li>返信されたURLをタップして、お子様のNFCカードを読み取ります</li>
+                    </ol>
+                  </div>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setLinkQrCodeDialogOpen(false)}>
+                閉じる
+              </Button>
+              <Button onClick={downloadLinkQrCode} disabled={!linkQrCodeDataUrl}>
                 <Download className="h-4 w-4 mr-2" />
                 ダウンロード
               </Button>

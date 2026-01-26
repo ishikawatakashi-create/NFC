@@ -181,13 +181,21 @@ export async function POST(req: Request) {
                 continue;
               }
 
-              console.log(`[LineWebhook] Text message: ${messageText}`);
+              console.log(`[LineWebhook] Text message received: "${messageText}"`);
+              console.log(`[LineWebhook] Message type: ${messageType}`);
+              console.log(`[LineWebhook] Reply token: ${event.replyToken}`);
 
               // 紐づけ開始コマンド（「紐づけ」「登録」「設定」など）
               const linkCommands = ["紐づけ", "紐付け", "登録", "設定", "カード登録", "通知登録"];
               const normalizedMessage = messageText.trim();
               
-              if (linkCommands.some(cmd => normalizedMessage.includes(cmd))) {
+              console.log(`[LineWebhook] Normalized message: "${normalizedMessage}"`);
+              console.log(`[LineWebhook] Checking against commands:`, linkCommands);
+              
+              const isLinkCommand = linkCommands.some(cmd => normalizedMessage.includes(cmd));
+              console.log(`[LineWebhook] Is link command: ${isLinkCommand}`);
+              
+              if (isLinkCommand) {
                 console.log(`[LineWebhook] Link command detected: ${normalizedMessage}`);
                 
                 // 一時トークンを生成
@@ -209,45 +217,76 @@ export async function POST(req: Request) {
                   console.error(`[LineWebhook] Failed to create link token:`, tokenError);
                   console.error(`[LineWebhook] Token error details:`, JSON.stringify(tokenError, null, 2));
                 } else {
+                  console.log(`[LineWebhook] Token created successfully: ${token.substring(0, 10)}...`);
+                  
                   // URLを生成（本番環境のURLを環境変数から取得、なければデフォルト）
                   const baseUrl = env.NEXT_PUBLIC_BASE_URL || (env.VERCEL_URL 
                     ? `https://${env.VERCEL_URL}` 
                     : "http://localhost:3001");
                   const linkUrl = `${baseUrl}/link-card?token=${token}`;
                   
+                  // QRコード画像のURLを生成
+                  const qrCodeUrl = `${baseUrl}/api/line/qr-code?url=${encodeURIComponent(linkUrl)}`;
+                  
                   console.log(`[LineWebhook] Generated link URL: ${linkUrl}`);
+                  console.log(`[LineWebhook] QR code URL: ${qrCodeUrl}`);
+                  console.log(`[LineWebhook] Base URL from env: ${env.NEXT_PUBLIC_BASE_URL || env.VERCEL_URL || "localhost:3001"}`);
                   
                   // LINEメッセージを送信
                   const lineChannelAccessToken = env.LINE_CHANNEL_ACCESS_TOKEN;
                   if (!lineChannelAccessToken) {
                     console.error("[LineWebhook] LINE_CHANNEL_ACCESS_TOKEN is not set");
                   } else {
+                    console.log(`[LineWebhook] Sending reply message...`);
+                    console.log(`[LineWebhook] Reply token: ${event.replyToken}`);
+                    console.log(`[LineWebhook] Access token length: ${lineChannelAccessToken.length}`);
+                    
                     try {
+                      const replyBody = {
+                        replyToken: event.replyToken,
+                        messages: [
+                          {
+                            type: "text",
+                            text: `カード紐づけを開始します。\n\n以下のQRコードを読み取るか、URLにアクセスして、お子様のNFCカードをタッチしてください。\n\n${linkUrl}\n\n※このURLは1時間有効です。`,
+                          },
+                          {
+                            type: "image",
+                            originalContentUrl: qrCodeUrl,
+                            previewImageUrl: qrCodeUrl,
+                          },
+                        ],
+                      };
+                      
+                      console.log(`[LineWebhook] Reply body:`, JSON.stringify(replyBody, null, 2));
+                      
                       const response = await fetch("https://api.line.me/v2/bot/message/reply", {
                         method: "POST",
                         headers: {
                           "Content-Type": "application/json",
                           Authorization: `Bearer ${lineChannelAccessToken}`,
                         },
-                        body: JSON.stringify({
-                          replyToken: event.replyToken,
-                          messages: [
-                            {
-                              type: "text",
-                              text: `カード紐づけを開始します。\n\n以下のURLにアクセスして、お子様のNFCカードをタッチしてください。\n\n${linkUrl}\n\n※このURLは1時間有効です。`,
-                            },
-                          ],
-                        }),
+                        body: JSON.stringify(replyBody),
                       });
+                      
+                      console.log(`[LineWebhook] Reply API response status: ${response.status}`);
                       
                       if (!response.ok) {
                         const errorText = await response.text();
                         console.error(`[LineWebhook] Failed to send reply message:`, response.status, errorText);
+                        try {
+                          const errorJson = JSON.parse(errorText);
+                          console.error(`[LineWebhook] Error details:`, JSON.stringify(errorJson, null, 2));
+                        } catch {
+                          console.error(`[LineWebhook] Error text (not JSON):`, errorText);
+                        }
                       } else {
-                        console.log(`[LineWebhook] Sent link URL to ${lineUserId}`);
+                        const responseText = await response.text();
+                        console.log(`[LineWebhook] Successfully sent link URL to ${lineUserId}`);
+                        console.log(`[LineWebhook] Response:`, responseText);
                       }
                     } catch (fetchError: any) {
                       console.error(`[LineWebhook] Error sending reply message:`, fetchError);
+                      console.error(`[LineWebhook] Error stack:`, fetchError.stack);
                     }
                   }
                 }
