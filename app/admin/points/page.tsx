@@ -155,12 +155,12 @@ export default function PointsPage() {
 
             if (rankingRes.ok && rankingData?.ok && rankingData?.rankings) {
               // ランキングデータと生徒データをマージ
-              const rankingMap = new Map(
+              const rankingMap = new Map<string, number>(
                 rankingData.rankings.map((r: any) => [r.id, r.monthlyPoints])
               )
               studentsWithPoints = studentsWithPoints.map((student: Student) => ({
                 ...student,
-                monthly_points: rankingMap.get(student.id) || 0,
+                monthly_points: (rankingMap.get(student.id) ?? 0) as number,
               }))
               studentsWithPoints = studentsWithPoints.sort(
                 (a: any, b: any) => (b.monthly_points || 0) - (a.monthly_points || 0)
