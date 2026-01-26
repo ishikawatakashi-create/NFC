@@ -12,6 +12,7 @@ import { CheckCircle2, XCircle, Loader2, QrCode } from "lucide-react"
 function LinkCardContent() {
   const searchParams = useSearchParams()
   const token = searchParams.get("token")
+  const cardIdFromUrl = searchParams.get("cardId") // URLパラメータからカードIDを取得
 
   const [status, setStatus] = useState<
     "idle" | "checking" | "ready" | "scanning" | "success" | "error"
@@ -44,6 +45,17 @@ function LinkCardContent() {
     }
   }, [token])
 
+  // トークン検証後、URLパラメータにカードIDがある場合は自動的に紐づけを開始
+  useEffect(() => {
+    if (status === "ready" && cardIdFromUrl && token) {
+      // カードIDがURLパラメータにある場合、自動的に紐づけを開始
+      submitCardId(cardIdFromUrl).catch((e: any) => {
+        setError(e?.message || "紐付けに失敗しました")
+        setStatus("ready")
+      })
+    }
+  }, [status, cardIdFromUrl, token])
+
   const checkToken = async () => {
     setStatus("checking")
     setError(null)
@@ -70,12 +82,24 @@ function LinkCardContent() {
     if (!trimmed) return ""
     try {
       const url = new URL(trimmed)
+      // URLパラメータからcardIdを取得
       const cardIdParam =
         url.searchParams.get("cardId") ||
         url.searchParams.get("card_id") ||
         url.searchParams.get("card")
-      return cardIdParam ? cardIdParam.trim() : trimmed
+      if (cardIdParam) {
+        return cardIdParam.trim()
+      }
+      // URLパラメータがない場合、パスから取得を試みる
+      // 例: /link-card-start?cardId=xxx のような形式
+      const pathMatch = trimmed.match(/cardId[=:]([^&\s]+)/i)
+      if (pathMatch && pathMatch[1]) {
+        return decodeURIComponent(pathMatch[1]).trim()
+      }
+      // それでも見つからない場合、そのまま返す（カードIDが直接含まれている場合）
+      return trimmed
     } catch {
+      // URL形式でない場合、そのまま返す（カードIDが直接含まれている場合）
       return trimmed
     }
   }
@@ -285,6 +309,16 @@ function LinkCardContent() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {cardIdFromUrl && (
+            <Alert>
+              <AlertDescription>
+                <p className="font-medium mb-2">カードIDが検出されました</p>
+                <p className="text-sm text-muted-foreground">
+                  自動的に紐づけを開始します...
+                </p>
+              </AlertDescription>
+            </Alert>
+          )}
           {/* QRコード読み取りセクション */}
           <div className="space-y-3">
             <div className="overflow-hidden rounded-md border bg-black">

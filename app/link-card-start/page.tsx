@@ -13,7 +13,7 @@ import { Loader2, MessageSquare, ExternalLink } from "lucide-react"
  */
 function LinkCardStartContent() {
   const searchParams = useSearchParams()
-  const studentId = searchParams.get("studentId")
+  const cardId = searchParams.get("cardId")
   const [lineOfficialAccountUrl, setLineOfficialAccountUrl] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
@@ -29,6 +29,8 @@ function LinkCardStartContent() {
   const handleOpenLine = () => {
     if (lineOfficialAccountUrl) {
       // LINE公式アカウントに遷移
+      // カードIDは既にURLパラメータとして含まれているので、LINE公式アカウントに遷移後、
+      // 親御さんに「紐づけ」とメッセージを送信してもらう
       window.location.href = lineOfficialAccountUrl
     } else {
       // LINE公式アカウントのURLが設定されていない場合、手動で「紐づけ」と送信してもらう
@@ -64,13 +66,28 @@ function LinkCardStartContent() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {cardId && (
+            <Alert>
+              <AlertDescription>
+                <p className="font-medium mb-2">カードID: {cardId}</p>
+                <p className="text-xs text-muted-foreground">
+                  このカードIDは自動的に紐づけに使用されます。
+                </p>
+              </AlertDescription>
+            </Alert>
+          )}
           <Alert>
             <AlertDescription>
               <p className="font-medium mb-2">手順：</p>
               <ol className="list-decimal list-inside space-y-1 text-sm">
                 <li>LINE公式アカウントを開きます</li>
                 <li>「紐づけ」とメッセージを送信します</li>
-                <li>返信されたURLをタップして、カードを読み取ります</li>
+                <li>返信されたURLをタップして、紐づけを完了します</li>
+                {cardId && (
+                  <li className="text-primary font-medium">
+                    ※カードIDは自動的に入力されます（手動入力不要）
+                  </li>
+                )}
               </ol>
             </AlertDescription>
           </Alert>

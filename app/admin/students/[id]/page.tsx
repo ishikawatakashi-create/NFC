@@ -762,9 +762,34 @@ export default function StudentDetailPage({
         return
       }
       
-      // QRコードには、LINE公式アカウントのURLを含める
-      // 親御さんがこのQRコードを読み取ると、LINE公式アカウントに遷移し、「紐づけ」とメッセージを送信できる
-      const qrCodeUrl = lineOfficialAccountUrl
+      // QRコードには、カードIDを含めた専用URLを含める
+      // 親御さんがこのQRコードを読み取ると、専用ページに遷移し、LINE公式アカウントに「紐づけ」とメッセージを送信できる
+      // カードIDはURLパラメータとして含める
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || (typeof window !== "undefined" ? window.location.origin : "")
+      if (!baseUrl) {
+        toast({
+          title: "エラー",
+          description: "ベースURLが設定されていません。",
+          variant: "destructive",
+        })
+        setIsGeneratingLinkQr(false)
+        return
+      }
+      
+      // カードIDが設定されていない場合はエラー
+      if (!student.card_id) {
+        toast({
+          title: "エラー",
+          description: "この生徒にはカードIDが登録されていません。先にカードを登録してください。",
+          variant: "destructive",
+        })
+        setIsGeneratingLinkQr(false)
+        return
+      }
+      
+      // カードIDを含めたURLを生成
+      // このURLにアクセスすると、LINE公式アカウントに遷移して「紐づけ」メッセージを送信できる
+      const qrCodeUrl = `${baseUrl}/link-card-start?cardId=${encodeURIComponent(student.card_id)}`
       
       console.log("[LinkQRCode] Generating QR code for URL:", qrCodeUrl)
       
@@ -937,7 +962,7 @@ export default function StudentDetailPage({
                 <p className="text-sm text-muted-foreground mb-4">
                   このQRコードを印刷して、NFCカードと一緒に親御さんにお渡しください。
                   <br />
-                  親御さんがQRコードを読み取ると、LINE公式アカウントに遷移し、「紐づけ」とメッセージを送信して紐づけを行えます。
+                  親御さんはLINE公式アカウントに「紐づけ」とメッセージを送信し、返信されたURLでこのQRコードを読み取るだけで、自動的に紐づけが完了します。
                 </p>
                 <div className="flex gap-2">
                   <Button
@@ -1412,11 +1437,14 @@ export default function StudentDetailPage({
                     <p className="font-medium">使用方法：</p>
                     <ol className="list-decimal list-inside space-y-1 ml-2">
                       <li>このQRコードを印刷して、NFCカードと一緒に親御さんにお渡しください</li>
-                      <li>親御さんがスマートフォンのカメラでQRコードを読み取ります</li>
-                      <li>LINE公式アカウントに遷移します（友だち追加が必要な場合は先に友だち追加）</li>
-                      <li>LINE公式アカウントに「紐づけ」とメッセージを送信します</li>
-                      <li>返信されたURLをタップして、お子様のNFCカードを読み取ります</li>
+                      <li>親御さんがLINE公式アカウントに「紐づけ」とメッセージを送信します</li>
+                      <li>LINE公式アカウントから返信されたURLをタップします</li>
+                      <li>返信されたURLのページで、このQRコードを読み取ります</li>
+                      <li className="font-medium text-blue-700">自動的にカードIDが入力され、紐づけが完了します</li>
                     </ol>
+                    <p className="text-xs text-blue-800 mt-2">
+                      ※iPhoneユーザーでも、QRコードを読み取るだけで簡単に紐づけできます
+                    </p>
                   </div>
                 </div>
               )}
