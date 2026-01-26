@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { env } from "@/lib/env";
 
 /**
  * LINE Messaging APIを使用してメッセージを送信する
@@ -64,7 +65,7 @@ export async function sendLineNotificationToParents(
 ): Promise<{ success: boolean; sentCount: number; error?: string }> {
   const supabase = getSupabaseAdmin();
 
-  const lineChannelAccessToken = process.env.LINE_CHANNEL_ACCESS_TOKEN;
+  const lineChannelAccessToken = env.LINE_CHANNEL_ACCESS_TOKEN;
 
   if (!lineChannelAccessToken) {
     console.warn(

@@ -7,6 +7,10 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // Instrumentation機能を有効化（環境変数検証用）
+  experimental: {
+    instrumentationHook: true,
+  },
 }
 
 export default nextConfig

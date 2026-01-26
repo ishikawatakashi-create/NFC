@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { env } from "@/lib/env";
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
@@ -28,8 +29,8 @@ export async function middleware(request: NextRequest) {
   // 管理画面の認証チェック
   if (isAdminPage) {
     const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      env.NEXT_PUBLIC_SUPABASE_URL,
+      env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
       {
         cookies: {
           getAll() {
@@ -59,7 +60,7 @@ export async function middleware(request: NextRequest) {
     }
 
     // 管理者情報を確認
-    const siteId = process.env.SITE_ID;
+    const siteId = env.SITE_ID;
     if (siteId) {
       const { data: admin, error: adminError } = await supabase
         .from("admins")

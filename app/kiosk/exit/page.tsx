@@ -73,9 +73,23 @@ export default function KioskExitPage() {
           const cardSerial = serialNumber.trim().toLowerCase()
 
           // シリアル番号から生徒を検索
+          const headers: HeadersInit = { "Content-Type": "application/json" };
+          // KIOSK_API_SECRETが設定されている場合はヘッダーに追加
+          const kioskSecret = process.env.NEXT_PUBLIC_KIOSK_API_SECRET;
+          console.log('[KioskClient] KIOSK_API_SECRET check:', {
+            hasSecret: !!kioskSecret,
+            secretLength: kioskSecret?.length,
+            secretPreview: kioskSecret ? `${kioskSecret.substring(0, 10)}...` : 'null',
+          });
+          if (kioskSecret) {
+            headers["x-kiosk-secret"] = kioskSecret;
+          } else {
+            console.warn('[KioskClient] NEXT_PUBLIC_KIOSK_API_SECRET が設定されていません');
+          }
+          
           const verifyRes = await fetch("/api/cards/verify", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers,
             body: JSON.stringify({ serialNumber: cardSerial }),
           })
           const verifyData = await verifyRes.json()
@@ -96,9 +110,15 @@ export default function KioskExitPage() {
           const studentName = student.name
 
           // 退室イベントを記録
+          const logHeaders: HeadersInit = { "Content-Type": "application/json" };
+          // KIOSK_API_SECRETが設定されている場合はヘッダーに追加
+          if (kioskSecret) {
+            logHeaders["x-kiosk-secret"] = kioskSecret;
+          }
+          
           const logRes = await fetch("/api/access-logs", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: logHeaders,
             body: JSON.stringify({
               studentId,
               cardId: cardSerial,

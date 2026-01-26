@@ -15,6 +15,15 @@ import { requireAdminApi } from "@/lib/auth-helpers";
 
 function requireKioskSecret(req: Request): { ok: true } | { ok: false; response: NextResponse } {
   const secret = process.env.KIOSK_API_SECRET;
+  
+  // 開発環境では、KIOSK_API_SECRETが設定されていない場合は認証をスキップ
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  if (!secret && isDevelopment) {
+    console.warn('[KioskAuth] KIOSK_API_SECRET が設定されていません。開発環境のため認証をスキップします。');
+    return { ok: true };
+  }
+  
+  // 本番環境では、KIOSK_API_SECRETが必須
   if (!secret) {
     return {
       ok: false,
@@ -26,6 +35,16 @@ function requireKioskSecret(req: Request): { ok: true } | { ok: false; response:
   }
 
   const provided = req.headers.get("x-kiosk-secret");
+  
+  // デバッグログ（本番環境では削除推奨）
+  console.log('[KioskAuth] Secret check:', {
+    hasSecret: !!secret,
+    secretLength: secret?.length,
+    provided: provided ? `${provided.substring(0, 10)}...` : 'null',
+    providedLength: provided?.length,
+    match: provided === secret,
+  });
+  
   if (!provided || provided !== secret) {
     return {
       ok: false,
