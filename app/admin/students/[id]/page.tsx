@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Pencil, ArrowLeft, Loader2, Clock, Coins, Plus, Minus, History, Download, Search } from "lucide-react"
+import { Pencil, ArrowLeft, Loader2, Clock, Coins, Plus, Minus, History, Download, Search, QrCode } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
@@ -90,6 +90,9 @@ export default function StudentDetailPage({
   const [historyHasMore, setHistoryHasMore] = useState(false)
   const [historyTotal, setHistoryTotal] = useState(0)
   const [isLoadingMoreHistory, setIsLoadingMoreHistory] = useState(false)
+  const [qrCodeDialogOpen, setQrCodeDialogOpen] = useState(false)
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null)
+  const [isGeneratingQr, setIsGeneratingQr] = useState(false)
 
   useEffect(() => {
     async function getParams() {
@@ -686,6 +689,42 @@ export default function StudentDetailPage({
     }
   }
 
+  const generateQrCode = async (cardId: string) => {
+    setIsGeneratingQr(true)
+    try {
+      // クライアント側でQRコードを生成
+      const QRCode = (await import("qrcode")).default
+      const dataUrl = await QRCode.toDataURL(cardId, {
+        width: 400,
+        margin: 2,
+        color: {
+          dark: "#000000",
+          light: "#FFFFFF",
+        },
+      })
+      setQrCodeDataUrl(dataUrl)
+      setQrCodeDialogOpen(true)
+    } catch (error: any) {
+      console.error("QRコード生成エラー:", error)
+      toast({
+        title: "エラー",
+        description: error?.message || "QRコードの生成に失敗しました",
+        variant: "destructive",
+      })
+    } finally {
+      setIsGeneratingQr(false)
+    }
+  }
+
+  const downloadQrCode = () => {
+    if (!qrCodeDataUrl || !student) return
+    
+    const link = document.createElement("a")
+    link.download = `${student.name}_カードID_QRコード.png`
+    link.href = qrCodeDataUrl
+    link.click()
+  }
+
   if (isLoading) {
     return (
       <AdminLayout
@@ -777,7 +816,21 @@ export default function StudentDetailPage({
               </div>
               <div>
                 <label className="text-sm font-medium text-muted-foreground">NFCカードID</label>
-                <p className="text-base mt-1 font-mono text-sm">{student.card_id || "-"}</p>
+                <div className="mt-1 flex items-center gap-2">
+                  <p className="text-base font-mono text-sm">{student.card_id || "-"}</p>
+                  {student.card_id && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => generateQrCode(student.card_id!)}
+                      disabled={isGeneratingQr}
+                    >
+                      <QrCode className="h-4 w-4" />
+                      QRコード
+                    </Button>
+                  )}
+                </div>
               </div>
               <div>
                 <label className="text-sm font-medium text-muted-foreground">登録日時</label>
@@ -1165,6 +1218,46 @@ export default function StudentDetailPage({
             <DialogFooter>
               <Button variant="outline" onClick={() => setPointsHistoryDialogOpen(false)}>
                 閉じる
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* QRコード表示ダイアログ */}
+        <Dialog open={qrCodeDialogOpen} onOpenChange={setQrCodeDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>カードID QRコード</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              {qrCodeDataUrl && (
+                <div className="flex flex-col items-center space-y-4">
+                  <div className="border-2 border-border rounded-lg p-4 bg-white">
+                    <img
+                      src={qrCodeDataUrl}
+                      alt="カードID QRコード"
+                      className="w-full max-w-[300px] h-auto"
+                    />
+                  </div>
+                  {student && (
+                    <div className="text-center space-y-2">
+                      <p className="text-sm font-medium">{student.name}さん</p>
+                      <p className="text-xs text-muted-foreground font-mono">{student.card_id}</p>
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground text-center">
+                    このQRコードを親御さんに配布すると、LINE連携時に読み取って紐付けできます。
+                  </p>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setQrCodeDialogOpen(false)}>
+                閉じる
+              </Button>
+              <Button onClick={downloadQrCode} disabled={!qrCodeDataUrl}>
+                <Download className="h-4 w-4 mr-2" />
+                ダウンロード
               </Button>
             </DialogFooter>
           </DialogContent>
