@@ -137,7 +137,7 @@ export default function PointsPage() {
       const data = await res.json()
 
       if (res.ok && data?.ok && data?.students) {
-        let studentsWithPoints = data.students
+        let studentsWithPoints: Student[] = data.students
           .filter((s: any) => s.role === "student")
           .map((s: any) => ({
             id: String(s.id),
@@ -686,7 +686,7 @@ export default function PointsPage() {
         : ["points", "description"]
     const rows =
       pointsCsvMode === "by_student"
-        ? students.map((student) => [student.id, student.name, "", ""])
+        ? students.map((student: Student) => [student.id, student.name, "", ""])
         : [["10", "テスト付与"]]
     const csvContent = [
       headers.join(","),
@@ -763,7 +763,7 @@ export default function PointsPage() {
           ? row[descriptionIndex]?.trim().replace(/^"|"$/g, "")
           : ""
 
-        assignments = students.map((student) => ({
+        assignments = students.map((student: Student) => ({
           studentId: student.id,
           points,
           description: description || undefined,
@@ -1483,7 +1483,7 @@ export default function PointsPage() {
                     {Array.from(selectedStudentIds)
                       .map((studentId) => students.find((s) => s.id === studentId))
                       .filter((s): s is Student => s !== undefined)
-                      .map((student) => (
+                      .map((student: Student) => (
                         <TableRow key={student.id}>
                           <TableCell className="font-medium">{student.name}</TableCell>
                           <TableCell>{getClassLabel(student.class)}</TableCell>
@@ -1587,7 +1587,7 @@ export default function PointsPage() {
                     {Array.from(selectedStudentIds)
                       .map((studentId) => students.find((s) => s.id === studentId))
                       .filter((s): s is Student => s !== undefined)
-                      .map((student) => (
+                      .map((student: Student) => (
                         <TableRow key={student.id}>
                           <TableCell className="font-medium">{student.name}</TableCell>
                           <TableCell>{getClassLabel(student.class)}</TableCell>
