@@ -178,11 +178,12 @@ export default function StudentDetailPage({
   useEffect(() => {
     if (!studentId) return
 
-    async function loadAccessLogs() {
-      const currentStudentId = studentId
-      setIsLogsLoading(true)
-      try {
-        const res = await fetch(`/api/access-logs?studentId=${encodeURIComponent(currentStudentId)}`, { cache: "no-store" })
+  async function loadAccessLogs() {
+    const currentStudentId = studentId
+    if (!currentStudentId) return
+    setIsLogsLoading(true)
+    try {
+      const res = await fetch(`/api/access-logs?studentId=${encodeURIComponent(currentStudentId)}`, { cache: "no-store" })
         const data = await res.json()
 
         if (res.ok && data?.ok && data?.logs) {
