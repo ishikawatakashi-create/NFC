@@ -89,53 +89,80 @@ export async function POST(req: Request) {
     }
 
     // 3. LINE User IDから親御さんを検索（既存のparent_line_accountsから）
+    // 注意: parent_line_accountsテーブルにはsite_idカラムがないため、
+    // parentsテーブル経由でsite_idでフィルタリングする
+    console.log(`[LineLinkCard] Looking up LINE account for user: ${linkToken.line_user_id}`);
+    
     const { data: lineAccount, error: lineAccountError } = await supabase
       .from("parent_line_accounts")
-      .select("id, parent_id, is_active")
+      .select("id, parent_id, is_active, parents!inner(site_id)")
       .eq("line_user_id", linkToken.line_user_id)
-      .eq("site_id", siteId)
+      .eq("parents.site_id", siteId)
       .single();
 
     let parentId: string | null = null;
 
-    if (lineAccountError && lineAccountError.code !== "PGRST116") {
-      // PGRST116は「レコードが見つからない」エラーなので、親御さんが未登録の可能性
-      console.log(`[LineLinkCard] LINE account not found for ${linkToken.line_user_id}, will create parent`);
-    } else if (lineAccountError && lineAccountError.code === "PGRST116") {
-      // 親御さんが未登録の場合、自動的に作成
-      const { data: newParent, error: createParentError } = await supabase
-        .from("parents")
-        .insert({
-          site_id: siteId,
-          name: "LINEユーザー", // 後で更新可能
-        })
-        .select()
-        .single();
+    if (lineAccountError) {
+      if (lineAccountError.code === "PGRST116") {
+        // レコードが見つからない = 親御さんが未登録 → 自動的に作成
+        console.log(`[LineLinkCard] LINE account not found for ${linkToken.line_user_id}, creating new parent`);
+        
+        const { data: newParent, error: createParentError } = await supabase
+          .from("parents")
+          .insert({
+            site_id: siteId,
+            name: "LINEユーザー", // 後で更新可能
+          })
+          .select()
+          .single();
 
-      if (createParentError || !newParent) {
+        if (createParentError || !newParent) {
+          console.error(`[LineLinkCard] Failed to create parent:`, createParentError);
+          return NextResponse.json(
+            { 
+              ok: false, 
+              error: `親御さんの登録に失敗しました: ${createParentError?.message || "不明なエラー"}` 
+            },
+            { status: 500 }
+          );
+        }
+
+        parentId = newParent.id;
+        console.log(`[LineLinkCard] Created new parent: ${parentId}`);
+
+        // LINEアカウントも作成
+        // 注意: parent_line_accountsテーブルにはsite_idカラムがない（parentsテーブル経由で管理）
+        const { error: createLineAccountError } = await supabase
+          .from("parent_line_accounts")
+          .insert({
+            parent_id: parentId,
+            line_user_id: linkToken.line_user_id,
+            is_active: true,
+            subscribed_at: new Date().toISOString(),
+          });
+
+        if (createLineAccountError) {
+          console.error(`[LineLinkCard] Failed to create LINE account:`, createLineAccountError);
+          // 親御さんは作成できたが、LINEアカウントの作成に失敗
+          // この場合は親御さんIDを返して続行（後でLINEアカウントを手動で紐づけ可能）
+        } else {
+          console.log(`[LineLinkCard] Created LINE account for parent: ${parentId}`);
+        }
+      } else {
+        // その他のエラー
+        console.error(`[LineLinkCard] Error looking up LINE account:`, lineAccountError);
         return NextResponse.json(
-          { ok: false, error: "親御さんの登録に失敗しました" },
+          { 
+            ok: false, 
+            error: `LINEアカウントの検索に失敗しました: ${lineAccountError.message || "不明なエラー"}` 
+          },
           { status: 500 }
         );
       }
-
-      parentId = newParent.id;
-
-      // LINEアカウントも作成
-      const { error: createLineAccountError } = await supabase
-        .from("parent_line_accounts")
-        .insert({
-          parent_id: parentId,
-          line_user_id: linkToken.line_user_id,
-          is_active: true,
-          subscribed_at: new Date().toISOString(),
-        });
-
-      if (createLineAccountError) {
-        console.error(`[LineLinkCard] Failed to create LINE account:`, createLineAccountError);
-      }
     } else if (lineAccount) {
+      // 既存のLINEアカウントが見つかった
       parentId = lineAccount.parent_id;
+      console.log(`[LineLinkCard] Found existing LINE account, parent ID: ${parentId}`);
 
       // LINEアカウントが非アクティブの場合はアクティブ化
       if (!lineAccount.is_active) {
@@ -147,12 +174,17 @@ export async function POST(req: Request) {
             unsubscribed_at: null,
           })
           .eq("id", lineAccount.id);
+        console.log(`[LineLinkCard] Reactivated LINE account for parent: ${parentId}`);
       }
     }
 
     if (!parentId) {
+      console.error(`[LineLinkCard] parentId is null after all processing. LINE User ID: ${linkToken.line_user_id}`);
       return NextResponse.json(
-        { ok: false, error: "親御さんの情報を取得できませんでした" },
+        { 
+          ok: false, 
+          error: "親御さんの情報を取得できませんでした。LINEアカウントとの紐付けに失敗した可能性があります。" 
+        },
         { status: 500 }
       );
     }

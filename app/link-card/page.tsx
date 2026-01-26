@@ -130,6 +130,9 @@ function LinkCardContent() {
       return
     }
 
+    console.log("[LinkCard] Submitting card ID:", normalizedCardId.substring(0, 20) + "...")
+    console.log("[LinkCard] Token:", token?.substring(0, 20) + "...")
+    
     const res = await fetch("/api/line/link-card", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -140,9 +143,12 @@ function LinkCardContent() {
     })
 
     const data = await res.json()
+    console.log("[LinkCard] API response:", { ok: data?.ok, error: data?.error })
 
     if (!res.ok || !data?.ok) {
-      throw new Error(data?.error || "紐付けに失敗しました")
+      const errorMessage = data?.error || "紐付けに失敗しました"
+      console.error("[LinkCard] Link failed:", errorMessage)
+      throw new Error(errorMessage)
     }
 
     setStudentName(data.student?.name || null)
