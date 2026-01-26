@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
-import { AlertTriangle, Save, Coins, Users, Plus, Minus, Download, CheckCircle, Database, BarChart3, Upload } from "lucide-react"
+import { AlertTriangle, Save, Coins, Users, Plus, Minus, Download, CheckCircle, Database, BarChart3, Upload, Loader2 } from "lucide-react"
 import { useState, useEffect, useRef } from "react"
 import { ClassBonusThresholdDialog } from "@/components/admin/class-bonus-threshold-dialog"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
@@ -60,6 +60,7 @@ export default function PointsPage() {
   // ポイント設定
   const [entryPoints, setEntryPoints] = useState("1")
   const [dailyLimit, setDailyLimit] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
 
   // 生徒一覧とポイント推移
   const [students, setStudents] = useState<Student[]>([])
@@ -884,18 +885,27 @@ export default function PointsPage() {
   }
 
   async function handleSave() {
+    if (isSaving) return
+    
+    setIsSaving(true)
     try {
       console.log('[PointSettings] Saving settings...', { entryPoints, dailyLimit })
       
       const points = parseInt(entryPoints, 10)
       if (isNaN(points) || points < 0) {
         toast({
-          title: "エラー",
+          title: "❌ エラー",
           description: "ポイント数は0以上の数値である必要があります",
           variant: "destructive",
         })
         return
       }
+
+      // 保存開始のトースト
+      toast({
+        title: "💾 保存中...",
+        description: "設定を保存しています",
+      })
 
       console.log('[PointSettings] Sending request to API...', { entryPoints: points, dailyLimit })
       const res = await fetch("/api/point-settings", {
@@ -918,18 +928,22 @@ export default function PointsPage() {
       await loadPointSettings()
 
       toast({
-        title: "✅ 設定を保存しました",
+        title: "✅ 保存完了！",
         description: `入室ポイント: ${points}pt、1日1回制限: ${dailyLimit ? "有効" : "無効"}`,
+        duration: 3000,
       })
       
       console.log('[PointSettings] Settings saved successfully')
     } catch (e: any) {
       console.error('[PointSettings] Failed to save:', e)
       toast({
-        title: "❌ エラー",
+        title: "❌ 保存失敗",
         description: e?.message || "保存に失敗しました。ページを再読み込みして再度お試しください。",
         variant: "destructive",
+        duration: 5000,
       })
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -1317,6 +1331,7 @@ export default function PointsPage() {
                 value={entryPoints}
                 onChange={(e) => setEntryPoints(e.target.value)}
                 className="max-w-xs"
+                disabled={isSaving}
               />
               <p className="text-sm text-muted-foreground">入室1回あたりに付与するポイント数（生徒のみ対象）</p>
             </div>
@@ -1328,12 +1343,26 @@ export default function PointsPage() {
                 </Label>
                 <p className="text-sm text-muted-foreground">同じ日に複数回入室してもポイントは1回のみ付与されます</p>
               </div>
-              <Switch id="daily-limit" checked={dailyLimit} onCheckedChange={setDailyLimit} />
+              <Switch id="daily-limit" checked={dailyLimit} onCheckedChange={setDailyLimit} disabled={isSaving} />
             </div>
             <div className="flex justify-end pt-2">
-              <Button onClick={handleSave} size="sm" className="gap-2">
-                <Save className="h-4 w-4" />
-                設定を保存
+              <Button 
+                onClick={handleSave} 
+                size="sm" 
+                className="gap-2 min-w-[120px]" 
+                disabled={isSaving}
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    保存中...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4" />
+                    設定を保存
+                  </>
+                )}
               </Button>
             </div>
           </CardContent>
