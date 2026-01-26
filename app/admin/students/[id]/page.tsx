@@ -924,7 +924,7 @@ export default function StudentDetailPage({
         </Card>
 
         {/* LINE紐づけ用QRコード */}
-        {student.role === "student" && (
+        {student && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
