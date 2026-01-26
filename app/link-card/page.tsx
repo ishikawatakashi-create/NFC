@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { CheckCircle2, XCircle, Loader2, QrCode } from "lucide-react"
+import { Html5Qrcode } from "html5-qrcode"
 
 function LinkCardContent() {
   const searchParams = useSearchParams()
@@ -18,21 +19,15 @@ function LinkCardContent() {
     "idle" | "checking" | "ready" | "scanning" | "success" | "error"
   >("idle")
   const [error, setError] = useState<string | null>(null)
-  const [isQrSupported, setIsQrSupported] = useState(false)
+  const [isQrSupported, setIsQrSupported] = useState(true) // html5-qrcodeはほとんどのブラウザで動作
   const [isQrScanning, setIsQrScanning] = useState(false)
   const [qrError, setQrError] = useState<string | null>(null)
   const [manualCardId, setManualCardId] = useState("")
   const [studentName, setStudentName] = useState<string | null>(null)
-  const videoRef = useRef<HTMLVideoElement | null>(null)
-  const streamRef = useRef<MediaStream | null>(null)
+  const html5QrCodeRef = useRef<Html5Qrcode | null>(null)
   const qrAbortRef = useRef(false)
 
   useEffect(() => {
-    // QRコード読み取りサポートチェック
-    if (typeof window !== "undefined" && "BarcodeDetector" in window) {
-      setIsQrSupported(true)
-    }
-
     // トークンの検証
     if (token) {
       checkToken()
@@ -104,16 +99,21 @@ function LinkCardContent() {
     }
   }
 
-  const stopQrScan = () => {
+  const stopQrScan = async () => {
     qrAbortRef.current = true
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop())
-      streamRef.current = null
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null
-    }
     setIsQrScanning(false)
+    
+    // html5-qrcodeの停止
+    if (html5QrCodeRef.current) {
+      try {
+        await html5QrCodeRef.current.stop()
+        await html5QrCodeRef.current.clear()
+      } catch (e) {
+        console.error("Error stopping QR scanner:", e)
+      }
+      html5QrCodeRef.current = null
+    }
+    
   }
 
   const submitCardId = async (cardId: string) => {
@@ -150,8 +150,11 @@ function LinkCardContent() {
   }
 
   const startQrScan = async () => {
-    if (!isQrSupported) {
-      setQrError("この端末はQR読み取りに対応していません。手入力をご利用ください。")
+    const elementId = "qr-reader"
+    const element = document.getElementById(elementId)
+    
+    if (!element) {
+      setQrError("カメラの初期化に失敗しました")
       return
     }
 
@@ -160,54 +163,82 @@ function LinkCardContent() {
       setIsQrScanning(true)
       qrAbortRef.current = false
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
-        audio: false,
-      })
+      // html5-qrcodeを使用
+      const html5QrCode = new Html5Qrcode(elementId)
+      html5QrCodeRef.current = html5QrCode
 
-      streamRef.current = stream
-
-      if (!videoRef.current) {
-        setQrError("カメラの初期化に失敗しました")
-        stopQrScan()
-        return
+      // カメラIDを取得（背面カメラを優先）
+      const devices = await Html5Qrcode.getCameras()
+      let cameraId: string | null = null
+      
+      // 背面カメラを探す
+      for (const device of devices) {
+        const label = device.label.toLowerCase()
+        if (label.includes("back") || 
+            label.includes("rear") ||
+            label.includes("環境") ||
+            label.includes("後")) {
+          cameraId = device.id
+          break
+        }
+      }
+      
+      // 背面カメラが見つからない場合は最初のカメラを使用
+      if (!cameraId && devices.length > 0) {
+        cameraId = devices[0].id
       }
 
-      videoRef.current.srcObject = stream
-      await videoRef.current.play()
+      if (!cameraId) {
+        throw new Error("カメラが見つかりませんでした")
+      }
 
-      // @ts-ignore - BarcodeDetector API
-      const detector = new BarcodeDetector({ formats: ["qr_code"] })
-
-      const scanLoop = async () => {
-        if (qrAbortRef.current || !videoRef.current) return
-        try {
-          const codes = await detector.detect(videoRef.current)
-          if (codes && codes.length > 0) {
-            const rawValue = codes[0].rawValue || ""
-            const extracted = extractCardIdFromQrValue(rawValue)
-            if (extracted) {
-              stopQrScan()
-              try {
-                await submitCardId(extracted)
-              } catch (submitError: any) {
-                setError(submitError?.message || "紐付けに失敗しました")
-                setStatus("ready")
-              }
-              return
-            }
+      // QRコードスキャンを開始
+      await html5QrCode.start(
+        cameraId,
+        {
+          fps: 10,
+          qrbox: { width: 250, height: 250 },
+          aspectRatio: 1.0,
+        },
+        (decodedText) => {
+          // QRコードが検出された
+          const extracted = extractCardIdFromQrValue(decodedText)
+          if (extracted) {
+            stopQrScan()
+            submitCardId(extracted).catch((submitError: any) => {
+              setError(submitError?.message || "紐付けに失敗しました")
+              setStatus("ready")
+            })
           }
-        } catch (e) {
-          console.error("QR detect failed:", e)
+        },
+        (errorMessage) => {
+          // エラーは無視（継続的にスキャンするため）
+          // ただし、重大なエラーの場合は表示
+          if (errorMessage.includes("Permission denied") || 
+              errorMessage.includes("NotAllowedError") ||
+              errorMessage.includes("NotReadableError")) {
+            setQrError("カメラの使用許可が必要です。ブラウザの設定でカメラの許可を確認してください。")
+            stopQrScan()
+          }
         }
-        if (!qrAbortRef.current) {
-          requestAnimationFrame(scanLoop)
-        }
-      }
-
-      requestAnimationFrame(scanLoop)
+      )
     } catch (e: any) {
-      setQrError(e?.message || "QR読み取りの開始に失敗しました")
+      console.error("QR scan error:", e)
+      let errorMessage = "QR読み取りの開始に失敗しました"
+      
+      if (e?.name === "NotAllowedError" || 
+          e?.message?.includes("Permission denied") ||
+          e?.message?.includes("permission")) {
+        errorMessage = "カメラの使用許可が必要です。ブラウザの設定でカメラの許可を確認してください。"
+      } else if (e?.name === "NotFoundError" || 
+                 e?.message?.includes("camera") ||
+                 e?.message?.includes("カメラ")) {
+        errorMessage = "カメラが見つかりませんでした。"
+      } else if (e?.message) {
+        errorMessage = e.message
+      }
+      
+      setQrError(errorMessage)
       stopQrScan()
     }
   }
@@ -322,11 +353,10 @@ function LinkCardContent() {
           {/* QRコード読み取りセクション */}
           <div className="space-y-3">
             <div className="overflow-hidden rounded-md border bg-black">
-              <video
-                ref={videoRef}
-                className="h-48 w-full object-cover"
-                playsInline
-                muted
+              <div
+                id="qr-reader"
+                className="h-48 w-full"
+                style={{ minHeight: "200px" }}
               />
             </div>
             <div className="flex items-center gap-2">
@@ -334,7 +364,7 @@ function LinkCardContent() {
                 onClick={startQrScan}
                 variant="default"
                 className="flex-1"
-                disabled={!isQrSupported || isQrScanning}
+                disabled={isQrScanning}
                 size="lg"
               >
                 {isQrScanning ? (
@@ -362,13 +392,6 @@ function LinkCardContent() {
             {qrError && (
               <Alert variant="destructive">
                 <AlertDescription>{qrError}</AlertDescription>
-              </Alert>
-            )}
-            {!isQrSupported && (
-              <Alert>
-                <AlertDescription>
-                  この端末はQR読み取りに対応していません。下の手動入力をご利用ください。
-                </AlertDescription>
               </Alert>
             )}
           </div>
