@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { CheckCircle2, XCircle, Loader2, Smartphone, QrCode } from "lucide-react"
 
-export default function LinkCardPage() {
+function LinkCardContent() {
   const searchParams = useSearchParams()
   const token = searchParams.get("token")
 
@@ -495,5 +495,13 @@ export default function LinkCardPage() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+export default function LinkCardPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">読み込み中...</div>}>
+      <LinkCardContent />
+    </Suspense>
   )
 }
