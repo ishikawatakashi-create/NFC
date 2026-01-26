@@ -96,6 +96,9 @@ export default function StudentDetailPage({
   const [linkQrCodeDialogOpen, setLinkQrCodeDialogOpen] = useState(false)
   const [linkQrCodeDataUrl, setLinkQrCodeDataUrl] = useState<string | null>(null)
   const [isGeneratingLinkQr, setIsGeneratingLinkQr] = useState(false)
+  // 編集ダイアログの状態
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [editingStudent, setEditingStudent] = useState<Student | null>(null)
 
   useEffect(() => {
     async function getParams() {
@@ -692,7 +695,63 @@ export default function StudentDetailPage({
 
   const handleEdit = () => {
     if (student) {
-      router.push(`/admin/students?edit=${student.id}`)
+      setEditingStudent({
+        ...student,
+        grade: student.grade || "",
+        class: student.class,
+      })
+      setIsEditDialogOpen(true)
+    }
+  }
+
+  const handleCancelEdit = () => {
+    setIsEditDialogOpen(false)
+    setEditingStudent(null)
+  }
+
+  const handleUpdateStudent = async () => {
+    if (!editingStudent || !studentId) return
+
+    try {
+      const res = await fetch(`/api/students/${studentId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editingStudent.name.trim(),
+          grade: editingStudent.grade?.trim() || null,
+          class: editingStudent.class || null,
+          status: editingStudent.status,
+          role: editingStudent.role || "student",
+          card_id: editingStudent.card_id?.trim() || null,
+        }),
+      })
+      const data = await res.json()
+
+      if (!res.ok || !data?.ok) {
+        const errorMessage = typeof data?.error === "string" 
+          ? data.error 
+          : data?.error?.message || String(data?.error) || "更新に失敗しました";
+        throw new Error(errorMessage);
+      }
+
+      // ダイアログを閉じる
+      setIsEditDialogOpen(false)
+      setEditingStudent(null)
+
+      // データを再読み込み
+      await loadStudent()
+
+      toast({
+        title: "更新完了",
+        description: "ユーザー情報を更新しました",
+      })
+    } catch (e: any) {
+      const errorMessage = e?.message || String(e) || "更新に失敗しました";
+      toast({
+        title: "エラー",
+        description: errorMessage,
+        variant: "destructive",
+      })
     }
   }
 
@@ -1448,6 +1507,119 @@ export default function StudentDetailPage({
               <Button onClick={downloadLinkQrCode} disabled={!linkQrCodeDataUrl}>
                 <Download className="h-4 w-4 mr-2" />
                 ダウンロード
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* 編集ダイアログ */}
+        <Dialog open={isEditDialogOpen} onOpenChange={handleCancelEdit}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>ユーザーを編集</DialogTitle>
+            </DialogHeader>
+            {editingStudent && (
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-name">ユーザー名 *</Label>
+                  <Input
+                    id="edit-name"
+                    placeholder="例: 山田太郎"
+                    value={editingStudent.name}
+                    onChange={(e) => setEditingStudent({ ...editingStudent, name: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-grade">学年（任意）</Label>
+                  <Input
+                    id="edit-grade"
+                    placeholder="例: 小学3年"
+                    value={editingStudent.grade || ""}
+                    onChange={(e) => setEditingStudent({ ...editingStudent, grade: e.target.value || undefined })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-class">クラス（任意）</Label>
+                  <Select
+                    value={editingStudent.class || "none"}
+                    onValueChange={(value) =>
+                      setEditingStudent({ ...editingStudent, class: value === "none" ? undefined : (value as StudentClass) })
+                    }
+                  >
+                    <SelectTrigger id="edit-class">
+                      <SelectValue placeholder="クラスを選択" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">未選択</SelectItem>
+                      <SelectItem value="kindergarten">キンダー</SelectItem>
+                      <SelectItem value="beginner">ビギナー</SelectItem>
+                      <SelectItem value="challenger">チャレンジャー</SelectItem>
+                      <SelectItem value="creator">クリエイター</SelectItem>
+                      <SelectItem value="innovator">イノベーター</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-role">属性 *</Label>
+                  <Select
+                    value={editingStudent.role || "student"}
+                    onValueChange={(value) => {
+                      if (editingStudent.has_custom_access_time) {
+                        const confirmed = window.confirm(
+                          "このユーザーは個別の開放時間が設定されています。属性を変更しても開放時間は個別設定のままです。属性のみ変更しますか？"
+                        )
+                        if (!confirmed) return
+                      }
+                      setEditingStudent({ ...editingStudent, role: value as UserRole })
+                    }}
+                  >
+                    <SelectTrigger id="edit-role">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="student">生徒</SelectItem>
+                      <SelectItem value="part_time">アルバイト</SelectItem>
+                      <SelectItem value="full_time">正社員</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-status">ステータス</Label>
+                  <Select
+                    value={editingStudent.status}
+                    onValueChange={(value) =>
+                      setEditingStudent({ ...editingStudent, status: value as StudentStatus })
+                    }
+                  >
+                    <SelectTrigger id="edit-status">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">在籍</SelectItem>
+                      <SelectItem value="suspended">休会</SelectItem>
+                      <SelectItem value="withdrawn">退会</SelectItem>
+                      <SelectItem value="graduated">卒業</SelectItem>
+                      <SelectItem value="disabled">利用停止</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-cardId">カードID（任意）</Label>
+                  <Input
+                    id="edit-cardId"
+                    placeholder="例: CARD-001"
+                    value={editingStudent.card_id || ""}
+                    onChange={(e) => setEditingStudent({ ...editingStudent, card_id: e.target.value || null })}
+                  />
+                </div>
+              </div>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={handleCancelEdit}>
+                キャンセル
+              </Button>
+              <Button onClick={handleUpdateStudent} disabled={!editingStudent?.name.trim()}>
+                更新
               </Button>
             </DialogFooter>
           </DialogContent>

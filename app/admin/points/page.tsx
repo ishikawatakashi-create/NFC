@@ -885,6 +885,8 @@ export default function PointsPage() {
 
   async function handleSave() {
     try {
+      console.log('[PointSettings] Saving settings...', { entryPoints, dailyLimit })
+      
       const points = parseInt(entryPoints, 10)
       if (isNaN(points) || points < 0) {
         toast({
@@ -895,6 +897,7 @@ export default function PointsPage() {
         return
       }
 
+      console.log('[PointSettings] Sending request to API...', { entryPoints: points, dailyLimit })
       const res = await fetch("/api/point-settings", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -905,19 +908,26 @@ export default function PointsPage() {
       })
 
       const data = await res.json()
+      console.log('[PointSettings] API response:', { ok: res.ok, data })
 
       if (!res.ok || !data?.ok) {
         throw new Error(data?.error || "保存に失敗しました")
       }
 
+      // 保存後に設定を再読み込み
+      await loadPointSettings()
+
       toast({
-        title: "設定を保存しました",
-        description: "ポイント設定の変更が正常に保存されました。",
+        title: "✅ 設定を保存しました",
+        description: `入室ポイント: ${points}pt、1日1回制限: ${dailyLimit ? "有効" : "無効"}`,
       })
+      
+      console.log('[PointSettings] Settings saved successfully')
     } catch (e: any) {
+      console.error('[PointSettings] Failed to save:', e)
       toast({
-        title: "エラー",
-        description: e?.message || "保存に失敗しました",
+        title: "❌ エラー",
+        description: e?.message || "保存に失敗しました。ページを再読み込みして再度お試しください。",
         variant: "destructive",
       })
     }
@@ -1287,6 +1297,17 @@ export default function PointsPage() {
             <CardDescription>入室時のポイント付与に関する設定を行います</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            <Alert className="bg-blue-50 border-blue-200">
+              <AlertDescription className="text-sm">
+                <strong>💡 ポイント付与の仕組み：</strong>
+                <ul className="list-disc list-inside mt-2 space-y-1">
+                  <li><strong>入室ポイント</strong>：ここで設定した値が入室時に付与されます（生徒のみ対象）</li>
+                  <li><strong>ボーナスポイント</strong>：月間入室回数が閾値を超えると、入室ポイントとは別に自動付与されます</li>
+                  <li><strong>例</strong>：入室ポイント1pt + ボーナス3pt = 合計4pt付与される場合があります</li>
+                </ul>
+              </AlertDescription>
+            </Alert>
+            
             <div className="space-y-2">
               <Label htmlFor="entry-points">入室ポイント付与量</Label>
               <Input
@@ -1297,7 +1318,7 @@ export default function PointsPage() {
                 onChange={(e) => setEntryPoints(e.target.value)}
                 className="max-w-xs"
               />
-              <p className="text-sm text-muted-foreground">入室1回あたりに付与するポイント数</p>
+              <p className="text-sm text-muted-foreground">入室1回あたりに付与するポイント数（生徒のみ対象）</p>
             </div>
 
             <div className="flex items-center justify-between rounded-lg border border-border p-4">
