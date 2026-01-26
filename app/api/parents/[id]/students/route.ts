@@ -124,7 +124,9 @@ export async function POST(
       return NextResponse.json({ ok: false, error: "生徒が見つかりません" }, { status: 404 });
     }
 
-    // 既存の紐づけを確認
+    // 既存の紐づけを確認（同じ親と生徒の組み合わせの重複を防ぐ）
+    // 注意: 1人の生徒に対して複数の親を紐づけることは可能です
+    // このチェックは「同じ親が同じ生徒に重複して紐づけるのを防ぐ」ためのものです
     const { data: existingLink, error: checkError } = await supabase
       .from("parent_students")
       .select("id")
@@ -139,7 +141,7 @@ export async function POST(
 
     if (existingLink) {
       return NextResponse.json(
-        { ok: false, error: "既に紐づけられています" },
+        { ok: false, error: "この親御さんと生徒は既に紐づけられています" },
         { status: 400 }
       );
     }

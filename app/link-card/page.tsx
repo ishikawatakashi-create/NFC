@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { CheckCircle2, XCircle, Loader2, Smartphone, QrCode } from "lucide-react"
+import { CheckCircle2, XCircle, Loader2, QrCode } from "lucide-react"
 
 function LinkCardContent() {
   const searchParams = useSearchParams()
@@ -17,9 +17,7 @@ function LinkCardContent() {
     "idle" | "checking" | "ready" | "scanning" | "success" | "error"
   >("idle")
   const [error, setError] = useState<string | null>(null)
-  const [isNfcSupported, setIsNfcSupported] = useState(false)
   const [isQrSupported, setIsQrSupported] = useState(false)
-  const [isQrMode, setIsQrMode] = useState(false)
   const [isQrScanning, setIsQrScanning] = useState(false)
   const [qrError, setQrError] = useState<string | null>(null)
   const [manualCardId, setManualCardId] = useState("")
@@ -29,11 +27,7 @@ function LinkCardContent() {
   const qrAbortRef = useRef(false)
 
   useEffect(() => {
-    // NFCサポートチェック
-    // @ts-ignore - Web NFC API
-    if (typeof window !== "undefined" && "NDEFReader" in window) {
-      setIsNfcSupported(true)
-    }
+    // QRコード読み取りサポートチェック
     if (typeof window !== "undefined" && "BarcodeDetector" in window) {
       setIsQrSupported(true)
     }
@@ -205,78 +199,6 @@ function LinkCardContent() {
     }
   }
 
-  const handleToggleQrMode = () => {
-    if (isQrMode) {
-      stopQrScan()
-      setIsQrMode(false)
-      return
-    }
-    setIsQrMode(true)
-    setQrError(null)
-    startQrScan()
-  }
-
-  const handleScan = async () => {
-    if (!isNfcSupported) {
-      setError("このデバイスはNFCをサポートしていません。スマートフォンでアクセスしてください。")
-      setStatus("ready")
-      return
-    }
-
-    if (!token) {
-      setError("トークンが指定されていません")
-      setStatus("error")
-      return
-    }
-
-    setStatus("scanning")
-    setError(null)
-
-    try {
-      // @ts-ignore - Web NFC API
-      const ndef = new NDEFReader()
-
-      let isProcessing = false
-
-      const processCard = async (serialNumber: string) => {
-        if (isProcessing) return
-        isProcessing = true
-
-        try {
-          if (!serialNumber) {
-            throw new Error("カードのシリアル番号を読み取れませんでした")
-          }
-
-          // シリアル番号の正規化
-          const cardSerial = serialNumber.trim().toLowerCase()
-
-          await submitCardId(cardSerial)
-        } catch (e: any) {
-          setError(e?.message || "カードの読み取りに失敗しました")
-          setStatus("ready")
-        }
-      }
-
-      // reading イベント（NDEF対応カード）
-      ndef.addEventListener("reading", async (event: any) => {
-        const { serialNumber } = event
-        await processCard(serialNumber)
-      })
-
-      // readingerror イベント（NDEF非対応カード）
-      ndef.addEventListener("readingerror", async (event: any) => {
-        console.error("Reading error:", event)
-        setError("カードの読み取りに失敗しました。NDEF対応のカードを使用してください。")
-        setStatus("error")
-      })
-
-      // 読み取り開始
-      await ndef.scan()
-    } catch (e: any) {
-      setError(e?.message || "NFC読み取りの開始に失敗しました")
-      setStatus("error")
-    }
-  }
 
   if (status === "checking") {
     return (
@@ -355,54 +277,103 @@ function LinkCardContent() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-            <Smartphone className="h-6 w-6 text-primary" />
+            <QrCode className="h-6 w-6 text-primary" />
           </div>
-          <CardTitle>NFCカードを紐付け</CardTitle>
+          <CardTitle>カードを紐付け</CardTitle>
           <CardDescription>
-            お子様のNFCカードをスマートフォンにタッチしてください
-            <br />
-            iPhoneの方は下の「QRコードで登録」をご利用ください
+            お子様のカードIDをQRコードで読み取るか、手動で入力してください
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {!isNfcSupported && (
-            <Alert variant="destructive">
-              <AlertDescription>
-                このデバイスはNFCをサポートしていません。スマートフォンでアクセスしてください。
-              </AlertDescription>
-            </Alert>
-          )}
-
-          <div className="space-y-2">
-            <p className="text-sm text-muted-foreground">
-              {status === "scanning" ? (
-                <>
-                  <Loader2 className="inline h-4 w-4 animate-spin mr-2" />
-                  カードを読み取り中...
-                  <br />
-                  <span className="text-xs">NFCカードをスマートフォンに近づけてください</span>
-                </>
-              ) : (
-                "下のボタンを押してから、お子様のNFCカードをスマートフォンにタッチしてください。"
+          {/* QRコード読み取りセクション */}
+          <div className="space-y-3">
+            <div className="overflow-hidden rounded-md border bg-black">
+              <video
+                ref={videoRef}
+                className="h-48 w-full object-cover"
+                playsInline
+                muted
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={startQrScan}
+                variant="default"
+                className="flex-1"
+                disabled={!isQrSupported || isQrScanning}
+                size="lg"
+              >
+                {isQrScanning ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    読み取り中...
+                  </>
+                ) : (
+                  <>
+                    <QrCode className="mr-2 h-4 w-4" />
+                    QRコードを読み取る
+                  </>
+                )}
+              </Button>
+              {isQrScanning && (
+                <Button
+                  onClick={stopQrScan}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  停止
+                </Button>
               )}
-            </p>
+            </div>
+            {qrError && (
+              <Alert variant="destructive">
+                <AlertDescription>{qrError}</AlertDescription>
+              </Alert>
+            )}
+            {!isQrSupported && (
+              <Alert>
+                <AlertDescription>
+                  この端末はQR読み取りに対応していません。下の手動入力をご利用ください。
+                </AlertDescription>
+              </Alert>
+            )}
           </div>
 
-          <Button
-            onClick={handleScan}
-            disabled={!isNfcSupported || status === "scanning"}
-            className="w-full"
-            size="lg"
-          >
-            {status === "scanning" ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                読み取り中...
-              </>
-            ) : (
-              "NFCカードを読み取る"
-            )}
-          </Button>
+          {/* 区切り線 */}
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">または</span>
+            </div>
+          </div>
+
+          {/* 手動入力セクション */}
+          <div className="space-y-2">
+            <Label htmlFor="manualCardId">
+              カードIDを手動で入力
+            </Label>
+            <Input
+              id="manualCardId"
+              value={manualCardId}
+              onChange={(e) => setManualCardId(e.target.value)}
+              placeholder="例: 04:e9:41:50:6f:61:80"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && manualCardId.trim()) {
+                  handleManualSubmit()
+                }
+              }}
+            />
+            <Button
+              onClick={handleManualSubmit}
+              className="w-full"
+              variant="secondary"
+              disabled={!manualCardId.trim()}
+            >
+              入力したIDで登録
+            </Button>
+          </div>
 
           {error && (
             <Alert variant="destructive">
@@ -410,86 +381,11 @@ function LinkCardContent() {
             </Alert>
           )}
 
-          <div className="pt-4 border-t space-y-3">
-            <p className="text-xs text-muted-foreground text-center">
-              タッチでうまく設定できない方はこちら
-            </p>
-            <Button
-              onClick={handleToggleQrMode}
-              variant="outline"
-              className="w-full"
-            >
-              <QrCode className="mr-2 h-4 w-4" />
-              {isQrMode ? "QR登録を閉じる" : "QRコードで登録"}
-            </Button>
-            {isQrMode && (
-              <div className="space-y-3">
-                <div className="overflow-hidden rounded-md border bg-black">
-                  <video
-                    ref={videoRef}
-                    className="h-48 w-full object-cover"
-                    playsInline
-                    muted
-                  />
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    onClick={startQrScan}
-                    variant="secondary"
-                    className="flex-1"
-                    disabled={!isQrSupported || isQrScanning}
-                  >
-                    {isQrScanning ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        読み取り中...
-                      </>
-                    ) : (
-                      "QR読み取りを開始"
-                    )}
-                  </Button>
-                  <Button
-                    onClick={stopQrScan}
-                    variant="outline"
-                    className="flex-1"
-                    disabled={!isQrScanning}
-                  >
-                    停止
-                  </Button>
-                </div>
-                {qrError && (
-                  <Alert variant="destructive">
-                    <AlertDescription>{qrError}</AlertDescription>
-                  </Alert>
-                )}
-                <div className="space-y-2">
-                  <Label htmlFor="manualCardId" className="text-xs">
-                    QRが使えない場合はカードIDを入力
-                  </Label>
-                  <Input
-                    id="manualCardId"
-                    value={manualCardId}
-                    onChange={(e) => setManualCardId(e.target.value)}
-                    placeholder="例: 04:e9:41:50:6f:61:80"
-                  />
-                  <Button
-                    onClick={handleManualSubmit}
-                    className="w-full"
-                    variant="secondary"
-                    disabled={!manualCardId.trim()}
-                  >
-                    入力したIDで登録
-                  </Button>
-                </div>
-              </div>
-            )}
-          </div>
-
           <div className="pt-4 border-t">
             <p className="text-xs text-muted-foreground text-center">
               ※このページは1時間有効です
               <br />
-              ※NDEF対応のNFCカードのみ読み取り可能です
+              ※カードIDは管理画面で確認できます
             </p>
           </div>
         </CardContent>

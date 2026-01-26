@@ -158,6 +158,8 @@ export async function POST(req: Request) {
     }
 
     // 4. 親御さんと生徒を紐づけ（既存の紐付けをチェック）
+    // 注意: 1人の生徒に対して複数の親を紐づけることは可能です
+    // このチェックは「同じ親が同じ生徒に重複して紐づけるのを防ぐ」ためのものです
     const { data: existingLink, error: checkLinkError } = await supabase
       .from("parent_students")
       .select("id")
@@ -174,12 +176,20 @@ export async function POST(req: Request) {
 
     if (!existingLink) {
       // 新規紐付け
+      // この生徒に既に他の親が紐づいているかチェックして、is_primaryを設定
+      const { data: existingParents } = await supabase
+        .from("parent_students")
+        .select("id")
+        .eq("student_id", student.id);
+
+      const isPrimary = !existingParents || existingParents.length === 0;
+
       const { error: linkError } = await supabase
         .from("parent_students")
         .insert({
           parent_id: parentId,
           student_id: student.id,
-          is_primary: true, // 最初の紐付けは主連絡先とする
+          is_primary: isPrimary, // 最初の紐付けのみ主連絡先とする
         });
 
       if (linkError) {

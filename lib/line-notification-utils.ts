@@ -151,6 +151,7 @@ export async function sendLineNotificationToParents(
 
     // 6. タグを置換してメッセージを作成
     const timestamp = new Date().toLocaleString("ja-JP", {
+      timeZone: "Asia/Tokyo",
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
