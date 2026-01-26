@@ -16,6 +16,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 interface Parent {
   id: string
   name: string
+  customDisplayName?: string
   phoneNumber?: string
   email?: string
   relationship?: "mother" | "father" | "guardian" | "other"
@@ -52,6 +53,7 @@ export default function ParentsPage() {
   const [linkingParent, setLinkingParent] = useState<Parent | null>(null)
   const [newParent, setNewParent] = useState({
     name: "",
+    customDisplayName: "",
     phoneNumber: "",
     email: "",
     relationship: "mother" as "mother" | "father" | "guardian" | "other",
@@ -84,6 +86,7 @@ export default function ParentsPage() {
       const apiParents: Parent[] = (data.parents || []).map((p: any) => ({
         id: String(p.id),
         name: p.name || "",
+        customDisplayName: p.customDisplayName || undefined,
         phoneNumber: p.phoneNumber || undefined,
         email: p.email || undefined,
         relationship: p.relationship || undefined,
@@ -208,6 +211,7 @@ export default function ParentsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: newParent.name.trim(),
+          customDisplayName: newParent.customDisplayName.trim() || null,
           phoneNumber: newParent.phoneNumber.trim() || null,
           email: newParent.email.trim() || null,
           relationship: newParent.relationship,
@@ -251,6 +255,7 @@ export default function ParentsPage() {
 
       setNewParent({
         name: "",
+        customDisplayName: "",
         phoneNumber: "",
         email: "",
         relationship: "mother",
@@ -270,6 +275,7 @@ export default function ParentsPage() {
     setEditingParent(parent)
     setNewParent({
       name: parent.name,
+      customDisplayName: parent.customDisplayName || "",
       phoneNumber: parent.phoneNumber || "",
       email: parent.email || "",
       relationship: parent.relationship || "mother",
@@ -288,6 +294,7 @@ export default function ParentsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: newParent.name.trim(),
+          customDisplayName: newParent.customDisplayName.trim() || null,
           phoneNumber: newParent.phoneNumber.trim() || null,
           email: newParent.email.trim() || null,
           relationship: newParent.relationship,
@@ -482,7 +489,10 @@ export default function ParentsPage() {
       // 既存の親御さんを選択
       const parentName = prompt("紐付ける親御さんの名前を入力してください（検索用）:")
       if (parentName) {
-        const foundParent = parents.find((p) => p.name.includes(parentName))
+        const foundParent = parents.find((p) => 
+          p.name.includes(parentName) || 
+          (p.customDisplayName && p.customDisplayName.includes(parentName))
+        )
         if (foundParent) {
           setLinkingParent(foundParent)
           setLineUserId(follower.userId)
@@ -668,7 +678,16 @@ export default function ParentsPage() {
                 <TableBody>
                   {filteredParents.map((parent) => (
                     <TableRow key={parent.id}>
-                      <TableCell className="font-medium">{parent.name}</TableCell>
+                      <TableCell className="font-medium">
+                        {parent.customDisplayName ? (
+                          <div>
+                            <div>{parent.customDisplayName}</div>
+                            <div className="text-xs text-muted-foreground">（{parent.name}）</div>
+                          </div>
+                        ) : (
+                          parent.name
+                        )}
+                      </TableCell>
                       <TableCell>{getRelationshipLabel(parent.relationship)}</TableCell>
                       <TableCell>{parent.email || "-"}</TableCell>
                       <TableCell>{parent.phoneNumber || "-"}</TableCell>
@@ -752,13 +771,28 @@ export default function ParentsPage() {
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="name">名前 *</Label>
+              <Label htmlFor="name">名前（LINE表示名） *</Label>
               <Input
                 id="name"
                 value={newParent.name}
                 onChange={(e) => setNewParent({ ...newParent, name: e.target.value })}
                 placeholder="山田花子"
               />
+              <p className="text-xs text-muted-foreground mt-1">
+                LINE連携時は自動的にLINE表示名が設定されます
+              </p>
+            </div>
+            <div>
+              <Label htmlFor="customDisplayName">任意の表示名（管理用）</Label>
+              <Input
+                id="customDisplayName"
+                value={newParent.customDisplayName}
+                onChange={(e) => setNewParent({ ...newParent, customDisplayName: e.target.value })}
+                placeholder="タロー君のパパ"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                管理画面での表示に使用できる任意の名前を設定できます
+              </p>
             </div>
             <div>
               <Label htmlFor="relationship">続柄</Label>
@@ -863,11 +897,20 @@ export default function ParentsPage() {
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="edit-name">名前 *</Label>
+              <Label htmlFor="edit-name">名前（LINE表示名） *</Label>
               <Input
                 id="edit-name"
                 value={newParent.name}
                 onChange={(e) => setNewParent({ ...newParent, name: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-customDisplayName">任意の表示名（管理用）</Label>
+              <Input
+                id="edit-customDisplayName"
+                value={newParent.customDisplayName}
+                onChange={(e) => setNewParent({ ...newParent, customDisplayName: e.target.value })}
+                placeholder="タロー君のパパ"
               />
             </div>
             <div>

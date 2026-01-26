@@ -273,12 +273,7 @@ export async function POST(req: Request) {
                         messages: [
                           {
                             type: "text",
-                            text: `カード紐づけを開始します。\n\n以下のQRコードを読み取るか、URLにアクセスして、お子様のNFCカードをタッチしてください。\n\n${linkUrl}\n\n※このURLは1時間有効です。`,
-                          },
-                          {
-                            type: "image",
-                            originalContentUrl: qrCodeUrl,
-                            previewImageUrl: qrCodeUrl,
+                            text: `カード紐づけを開始します。\n\n以下のURLにアクセスして、紐づけを完了してください。\n\n${linkUrl}\n\n※このURLは1時間有効です。`,
                           },
                         ],
                       };

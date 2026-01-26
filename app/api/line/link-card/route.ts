@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { getLineProfile } from "@/lib/line-webhook-utils";
 import crypto from "crypto";
 
 /**
@@ -107,11 +108,15 @@ export async function POST(req: Request) {
         // レコードが見つからない = 親御さんが未登録 → 自動的に作成
         console.log(`[LineLinkCard] LINE account not found for ${linkToken.line_user_id}, creating new parent`);
         
+        // LINEプロフィール情報を取得
+        const profile = await getLineProfile(linkToken.line_user_id);
+        const parentName = profile?.displayName || "LINEユーザー";
+        
         const { data: newParent, error: createParentError } = await supabase
           .from("parents")
           .insert({
             site_id: siteId,
-            name: "LINEユーザー", // 後で更新可能
+            name: parentName,
           })
           .select()
           .single();
@@ -137,6 +142,7 @@ export async function POST(req: Request) {
           .insert({
             parent_id: parentId,
             line_user_id: linkToken.line_user_id,
+            line_display_name: parentName,
             is_active: true,
             subscribed_at: new Date().toISOString(),
           });

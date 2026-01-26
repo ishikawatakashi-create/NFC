@@ -15,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 
-type StudentStatus = "active" | "suspended" | "withdrawn" | "graduated"
+type StudentStatus = "active" | "suspended" | "withdrawn" | "graduated" | "disabled"
 type StudentClass = "kindergarten" | "beginner" | "challenger" | "creator" | "innovator"
 type UserRole = "student" | "part_time" | "full_time"
 type EventType = "entry" | "exit" | "no_log" | "forced_exit"
@@ -561,6 +561,8 @@ export default function StudentDetailPage({
         return "退会"
       case "graduated":
         return "卒業"
+      case "disabled":
+        return "利用停止"
     }
   }
 
@@ -574,6 +576,8 @@ export default function StudentDetailPage({
         return "outline"
       case "graduated":
         return "default"
+      case "disabled":
+        return "destructive"
     }
   }
 
@@ -924,20 +928,8 @@ export default function StudentDetailPage({
               </div>
               <div>
                 <label className="text-sm font-medium text-muted-foreground">NFCカードID</label>
-                <div className="mt-1 flex items-center gap-2">
+                <div className="mt-1">
                   <p className="text-base font-mono text-sm">{student.card_id || "-"}</p>
-                  {student.card_id && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-2"
-                      onClick={() => generateQrCode(student.card_id!)}
-                      disabled={isGeneratingQr}
-                    >
-                      <QrCode className="h-4 w-4" />
-                      QRコード
-                    </Button>
-                  )}
                 </div>
               </div>
               <div>
@@ -1007,22 +999,22 @@ export default function StudentDetailPage({
           </CardContent>
         </Card>
 
-        {/* 開放時間設定 */}
+        {/* 利用可能時間設定 */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Clock className="h-5 w-5" />
-              開放時間設定
+              利用可能時間設定
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
-                <label className="text-sm font-medium text-muted-foreground">開始時刻</label>
+                <label className="text-sm font-medium text-muted-foreground">開放開始時間</label>
                 <p className="text-base mt-1">{accessTime.start}</p>
               </div>
               <div>
-                <label className="text-sm font-medium text-muted-foreground">終了時刻</label>
+                <label className="text-sm font-medium text-muted-foreground">強制退室時間</label>
                 <p className="text-base mt-1">{accessTime.end}</p>
               </div>
               <div>

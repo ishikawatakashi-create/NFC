@@ -36,6 +36,7 @@ export async function GET(req: Request) {
           parents!inner(
             id,
             name,
+            custom_display_name,
             phone_number,
             email,
             relationship,
@@ -60,6 +61,7 @@ export async function GET(req: Request) {
       const parents = (data || []).map((ps: any) => ({
         id: ps.parents.id,
         name: ps.parents.name,
+        customDisplayName: ps.parents.custom_display_name,
         phoneNumber: ps.parents.phone_number,
         email: ps.parents.email,
         relationship: ps.parents.relationship,
@@ -77,6 +79,7 @@ export async function GET(req: Request) {
           `
           id,
           name,
+          custom_display_name,
           phone_number,
           email,
           relationship,
@@ -100,6 +103,7 @@ export async function GET(req: Request) {
       const parents = (data || []).map((p: any) => ({
         id: p.id,
         name: p.name,
+        customDisplayName: p.custom_display_name,
         phoneNumber: p.phone_number,
         email: p.email,
         relationship: p.relationship,
@@ -124,8 +128,9 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { name, phoneNumber, email, relationship, notes, studentIds } = body as {
+    const { name, customDisplayName, phoneNumber, email, relationship, notes, studentIds } = body as {
       name: string;
+      customDisplayName?: string;
       phoneNumber?: string;
       email?: string;
       relationship?: "mother" | "father" | "guardian" | "other";
@@ -161,6 +166,7 @@ export async function POST(req: Request) {
         {
           site_id: siteId,
           name,
+          custom_display_name: customDisplayName || null,
           phone_number: phoneNumber || null,
           email: email || null,
           relationship: relationship || null,
@@ -198,6 +204,7 @@ export async function POST(req: Request) {
       parent: {
         id: parentData.id,
         name: parentData.name,
+        customDisplayName: parentData.custom_display_name,
         phoneNumber: parentData.phone_number,
         email: parentData.email,
         relationship: parentData.relationship,

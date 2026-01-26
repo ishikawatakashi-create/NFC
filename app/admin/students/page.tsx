@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Plus, Download, Search, Eye, UserPlus, Pencil, Trash2, CreditCard, Upload, FileDown } from "lucide-react"
 
-type StudentStatus = "active" | "suspended" | "withdrawn" | "graduated"
+type StudentStatus = "active" | "suspended" | "withdrawn" | "graduated" | "disabled"
 type StudentClass = "kindergarten" | "beginner" | "challenger" | "creator" | "innovator"
 type EventType = "entry" | "exit" | "no_log"
 type UserRole = "student" | "part_time" | "full_time"
@@ -165,6 +165,8 @@ export default function StudentsPage() {
         return "退会"
       case "graduated":
         return "卒業"
+      case "disabled":
+        return "利用停止"
     }
   }
 
@@ -178,6 +180,8 @@ export default function StudentsPage() {
         return "outline"
       case "graduated":
         return "secondary"
+      case "disabled":
+        return "destructive"
     }
   }
 
@@ -894,6 +898,7 @@ export default function StudentsPage() {
                   <SelectItem value="suspended">休会</SelectItem>
                   <SelectItem value="withdrawn">退会</SelectItem>
                   <SelectItem value="graduated">卒業</SelectItem>
+                  <SelectItem value="disabled">利用停止</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1029,18 +1034,6 @@ export default function StudentsPage() {
                               <Eye className="h-4 w-4" />
                               詳細
                             </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="gap-2 text-destructive hover:text-destructive cursor-pointer"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleDeleteStudent(student)
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              削除
-                            </Button>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -1108,6 +1101,7 @@ export default function StudentsPage() {
                   <SelectItem value="suspended">休会</SelectItem>
                   <SelectItem value="withdrawn">退会</SelectItem>
                   <SelectItem value="graduated">卒業</SelectItem>
+                  <SelectItem value="disabled">利用停止</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1232,6 +1226,7 @@ export default function StudentsPage() {
                     <SelectItem value="suspended">休会</SelectItem>
                     <SelectItem value="withdrawn">退会</SelectItem>
                     <SelectItem value="graduated">卒業</SelectItem>
+                    <SelectItem value="disabled">利用停止</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1297,31 +1292,6 @@ export default function StudentsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={isDeleteDialogOpen} onOpenChange={handleCancelDelete}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>ユーザーを削除</DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            {deletingStudent && (
-              <p className="text-sm text-muted-foreground">
-                「<span className="font-semibold text-foreground">{deletingStudent.name}</span>」を削除してもよろしいですか？
-                <br />
-                この操作は取り消せません。
-              </p>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={handleCancelDelete}>
-              キャンセル
-            </Button>
-            <Button variant="destructive" onClick={handleConfirmDelete}>
-              削除
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* NFC Card Register Dialog */}
       <Dialog open={isCardRegisterDialogOpen} onOpenChange={handleCancelCardRegister}>

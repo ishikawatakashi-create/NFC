@@ -131,11 +131,11 @@ export default function SettingsPage() {
           </AlertDescription>
         </Alert>
 
-        {/* セクション1: 開放時間 */}
+        {/* セクション1: 利用可能時間 */}
         <Card>
           <CardHeader>
-            <CardTitle>開放時間</CardTitle>
-            <CardDescription>属性ごと、または個別に開放時間を設定します</CardDescription>
+            <CardTitle>利用可能時間設定</CardTitle>
+            <CardDescription>属性ごと、または個別に利用開始時間と強制退室時間を設定します</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -146,7 +146,7 @@ export default function SettingsPage() {
               >
                 <Clock className="h-6 w-6" />
                 <span className="font-semibold">生徒</span>
-                <span className="text-xs text-muted-foreground">開放時間を設定</span>
+                <span className="text-xs text-muted-foreground">利用可能時間を設定</span>
               </Button>
               <Button
                 variant="outline"
@@ -155,7 +155,7 @@ export default function SettingsPage() {
               >
                 <Clock className="h-6 w-6" />
                 <span className="font-semibold">アルバイト</span>
-                <span className="text-xs text-muted-foreground">開放時間を設定</span>
+                <span className="text-xs text-muted-foreground">利用可能時間を設定</span>
               </Button>
               <Button
                 variant="outline"
@@ -164,7 +164,7 @@ export default function SettingsPage() {
               >
                 <Clock className="h-6 w-6" />
                 <span className="font-semibold">正社員</span>
-                <span className="text-xs text-muted-foreground">開放時間を設定</span>
+                <span className="text-xs text-muted-foreground">利用可能時間を設定</span>
               </Button>
               <Button
                 variant="outline"
@@ -179,9 +179,10 @@ export default function SettingsPage() {
             <Alert>
               <AlertDescription className="text-sm">
                 <ul className="list-disc list-inside space-y-1 mt-2">
+                  <li>開放開始時間：入室が可能になる時刻</li>
+                  <li>強制退室時間：この時刻になると未退室のユーザーは自動的に退室処理されます（通知なし）</li>
                   <li>新規登録時は、対応する属性に紐づいた設定が適用されます</li>
                   <li>個別設定をしたユーザーは、属性が変更されても個別設定が優先されます</li>
-                  <li>終了時刻に未退室のユーザーは自動的に強制退室となります（通知なし）</li>
                 </ul>
               </AlertDescription>
             </Alert>

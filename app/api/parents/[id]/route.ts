@@ -32,6 +32,7 @@ export async function GET(
         `
         id,
         name,
+        custom_display_name,
         phone_number,
         email,
         relationship,
@@ -72,6 +73,7 @@ export async function GET(
     const parent = {
       id: data.id,
       name: data.name,
+      customDisplayName: data.custom_display_name,
       phoneNumber: data.phone_number,
       email: data.email,
       relationship: data.relationship,
@@ -102,8 +104,9 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = await req.json();
-    const { name, phoneNumber, email, relationship, notes } = body as {
+    const { name, customDisplayName, phoneNumber, email, relationship, notes } = body as {
       name?: string;
+      customDisplayName?: string;
       phoneNumber?: string;
       email?: string;
       relationship?: "mother" | "father" | "guardian" | "other";
@@ -129,6 +132,7 @@ export async function PATCH(
 
     const updateData: any = {};
     if (name !== undefined) updateData.name = name;
+    if (customDisplayName !== undefined) updateData.custom_display_name = customDisplayName || null;
     if (phoneNumber !== undefined) updateData.phone_number = phoneNumber || null;
     if (email !== undefined) updateData.email = email || null;
     if (relationship !== undefined) updateData.relationship = relationship || null;
@@ -156,6 +160,7 @@ export async function PATCH(
       parent: {
         id: data.id,
         name: data.name,
+        customDisplayName: data.custom_display_name,
         phoneNumber: data.phone_number,
         email: data.email,
         relationship: data.relationship,
