@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -8,10 +8,10 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2, MessageSquare, ExternalLink } from "lucide-react"
 
 /**
- * 紐づけ開始ページ
+ * 紐づけ開始ページのコンテンツ
  * QRコードを読み取った際に、LINE公式アカウントに遷移して「紐づけ」メッセージを送信する
  */
-export default function LinkCardStartPage() {
+function LinkCardStartContent() {
   const searchParams = useSearchParams()
   const studentId = searchParams.get("studentId")
   const [lineOfficialAccountUrl, setLineOfficialAccountUrl] = useState<string | null>(null)
@@ -98,5 +98,28 @@ export default function LinkCardStartPage() {
         </CardContent>
       </Card>
     </div>
+  )
+}
+
+/**
+ * 紐づけ開始ページ
+ * Suspenseバウンダリでラップして、useSearchParams()を安全に使用
+ */
+export default function LinkCardStartPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-6">
+            <div className="flex flex-col items-center justify-center space-y-4">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground">読み込み中...</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    }>
+      <LinkCardStartContent />
+    </Suspense>
   )
 }
