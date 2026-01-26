@@ -272,7 +272,10 @@ export async function PATCH(
         last_event_timestamp: null,
         access_start_time: null,
         access_end_time: null,
-        has_custom_access_time: false
+        has_custom_access_time: false,
+        current_points: 0,
+        bonus_threshold: null,
+        has_custom_bonus_threshold: false
       } : null;
       error = null;
     }
@@ -496,7 +499,10 @@ export async function PUT(
         last_event_timestamp: null,
         access_start_time: null,
         access_end_time: null,
-        has_custom_access_time: false
+        has_custom_access_time: false,
+        current_points: 0,
+        bonus_threshold: null,
+        has_custom_bonus_threshold: false
       } : null;
       error = null;
     }
