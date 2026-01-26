@@ -168,24 +168,56 @@ function LinkCardContent() {
       html5QrCodeRef.current = html5QrCode
 
       // カメラIDを取得（背面カメラを優先）
-      const devices = await Html5Qrcode.getCameras()
+      // まず、getUserMediaで環境カメラ（背面カメラ）を直接取得してカメラIDを特定
       let cameraId: string | null = null
       
-      // 背面カメラを探す
-      for (const device of devices) {
-        const label = device.label.toLowerCase()
-        if (label.includes("back") || 
-            label.includes("rear") ||
-            label.includes("環境") ||
-            label.includes("後")) {
-          cameraId = device.id
-          break
+      try {
+        // 環境カメラ（背面カメラ）を直接取得
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" }
+        })
+        const tracks = stream.getVideoTracks()
+        if (tracks.length > 0) {
+          const settings = tracks[0].getSettings()
+          if (settings.deviceId) {
+            cameraId = settings.deviceId as string
+            console.log("[QRScan] Found environment camera via getUserMedia:", cameraId)
+          }
         }
+        // ストリームを停止（後でhtml5-qrcodeが再取得する）
+        tracks.forEach(track => track.stop())
+      } catch (e) {
+        console.warn("[QRScan] Failed to get environment camera directly:", e)
       }
       
-      // 背面カメラが見つからない場合は最初のカメラを使用
-      if (!cameraId && devices.length > 0) {
-        cameraId = devices[0].id
+      // 直接取得に失敗した場合、カメラリストから検索
+      if (!cameraId) {
+        const devices = await Html5Qrcode.getCameras()
+        console.log("[QRScan] Available cameras:", devices.map(d => ({ id: d.id.substring(0, 20) + "...", label: d.label })))
+        
+        // 背面カメラを探す
+        for (const device of devices) {
+          const label = device.label.toLowerCase()
+          if (label.includes("back") || 
+              label.includes("rear") ||
+              label.includes("環境") ||
+              label.includes("後") ||
+              label.includes("environment") ||
+              label.includes("facing back")) {
+            cameraId = device.id
+            console.log("[QRScan] Found back camera from list:", device.label)
+            break
+          }
+        }
+        
+        // 背面カメラが見つからない場合、デバイス数が2つ以上なら2番目を試す（iPhoneの場合、最初が前面、2番目が背面の可能性）
+        if (!cameraId && devices.length >= 2) {
+          cameraId = devices[1].id
+          console.log("[QRScan] Using second camera (likely back camera):", devices[1].label)
+        } else if (!cameraId && devices.length > 0) {
+          cameraId = devices[0].id
+          console.log("[QRScan] Using first camera:", devices[0].label)
+        }
       }
 
       if (!cameraId) {
@@ -193,12 +225,17 @@ function LinkCardContent() {
       }
 
       // QRコードスキャンを開始
+      // 読み取り枠を大きく、画面サイズに応じて調整
+      const qrboxSize = Math.min(300, Math.min(window.innerWidth, window.innerHeight) * 0.7)
+      console.log("[QRScan] Starting QR scan with camera:", cameraId?.substring(0, 20) + "...", "qrbox size:", qrboxSize)
+      
       await html5QrCode.start(
         cameraId,
         {
           fps: 10,
-          qrbox: { width: 250, height: 250 },
+          qrbox: { width: qrboxSize, height: qrboxSize },
           aspectRatio: 1.0,
+          disableFlip: false,
         },
         (decodedText) => {
           // QRコードが検出された
@@ -228,11 +265,13 @@ function LinkCardContent() {
       
       if (e?.name === "NotAllowedError" || 
           e?.message?.includes("Permission denied") ||
-          e?.message?.includes("permission")) {
-        errorMessage = "カメラの使用許可が必要です。ブラウザの設定でカメラの許可を確認してください。"
+          e?.message?.includes("permission") ||
+          e?.message?.includes("NotAllowedError")) {
+        errorMessage = "カメラの使用許可が必要です。\n\n設定方法:\n1. ブラウザの設定を開く\n2. サイトの設定 → カメラ → 許可\n3. ページを再読み込みしてください"
       } else if (e?.name === "NotFoundError" || 
                  e?.message?.includes("camera") ||
-                 e?.message?.includes("カメラ")) {
+                 e?.message?.includes("カメラ") ||
+                 e?.message?.includes("NotFoundError")) {
         errorMessage = "カメラが見つかりませんでした。"
       } else if (e?.message) {
         errorMessage = e.message
@@ -355,8 +394,8 @@ function LinkCardContent() {
             <div className="overflow-hidden rounded-md border bg-black">
               <div
                 id="qr-reader"
-                className="h-48 w-full"
-                style={{ minHeight: "200px" }}
+                className="w-full"
+                style={{ minHeight: "300px", height: "50vh", maxHeight: "500px" }}
               />
             </div>
             <div className="flex items-center gap-2">
