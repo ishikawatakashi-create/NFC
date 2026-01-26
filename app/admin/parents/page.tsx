@@ -476,6 +476,7 @@ export default function ParentsPage() {
       // 新規作成
       setNewParent({
         name: follower.displayName,
+        customDisplayName: "",
         phoneNumber: "",
         email: "",
         relationship: "mother",
