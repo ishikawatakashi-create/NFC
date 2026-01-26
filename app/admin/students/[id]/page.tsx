@@ -739,7 +739,30 @@ export default function StudentDetailPage({
       setEditingStudent(null)
 
       // データを再読み込み
-      await loadStudent()
+      const reloadRes = await fetch(`/api/students/${studentId}`, { cache: "no-store" })
+      const reloadData = await reloadRes.json()
+      if (reloadRes.ok && reloadData?.ok && reloadData?.student) {
+        const apiStudent = reloadData.student
+        const mapped: Student = {
+          id: String(apiStudent.id),
+          name: apiStudent.name ?? "",
+          grade: apiStudent.grade ? String(apiStudent.grade) : undefined,
+          status: (apiStudent.status ?? "active") as StudentStatus,
+          class: apiStudent.class ? (apiStudent.class as StudentClass) : undefined,
+          role: apiStudent.role ? (apiStudent.role as UserRole) : "student",
+          card_id: apiStudent.card_id || null,
+          last_event_type: apiStudent.last_event_type ? (apiStudent.last_event_type as EventType) : null,
+          last_event_timestamp: apiStudent.last_event_timestamp || null,
+          access_start_time: apiStudent.access_start_time || null,
+          access_end_time: apiStudent.access_end_time || null,
+          has_custom_access_time: apiStudent.has_custom_access_time || false,
+          current_points: apiStudent.current_points ?? 0,
+          bonus_threshold: apiStudent.bonus_threshold ?? null,
+          has_custom_bonus_threshold: apiStudent.has_custom_bonus_threshold ?? false,
+          created_at: apiStudent.created_at || undefined,
+        }
+        setStudent(mapped)
+      }
 
       toast({
         title: "更新完了",
