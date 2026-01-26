@@ -366,7 +366,7 @@ export default function LinkCardPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           {!isNfcSupported && (
-            <Alert variant="warning">
+            <Alert variant="destructive">
               <AlertDescription>
                 このデバイスはNFCをサポートしていません。スマートフォンでアクセスしてください。
               </AlertDescription>

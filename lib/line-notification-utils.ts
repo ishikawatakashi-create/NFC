@@ -203,7 +203,7 @@ export async function sendLineNotificationToParents(
         line_user_id: lineUserId,
         message_sent: fullMessage,
         status: sendResult.success ? "success" : "failed",
-        error_message: sendResult.error || null,
+        error_message: sendResult.error || undefined,
       });
 
       if (sendResult.success) {
