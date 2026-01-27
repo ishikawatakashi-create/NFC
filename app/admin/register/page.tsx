@@ -171,6 +171,7 @@ export default function AdminRegisterPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   disabled={isLoading}
+                  autoComplete="new-password"
                   required
                 />
                 <p className="text-xs text-muted-foreground">

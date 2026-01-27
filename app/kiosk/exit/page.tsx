@@ -310,7 +310,7 @@ export default function KioskExitPage() {
                   onClick={handleScan}
                   disabled={isScanning || !isNfcSupported}
                   size="lg"
-                  className="w-full max-w-xs"
+                  className="w-full max-w-xs h-11 min-h-[44px]"
                 >
                   カードをタッチ
                 </Button>
