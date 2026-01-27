@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import Link from "next/link"
 import { AdminLayout } from "@/components/admin/admin-layout"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -18,7 +19,7 @@ import {
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
-import { Download, Filter, ChevronDown, ChevronUp, Edit } from "lucide-react"
+import { Download, Edit } from "lucide-react"
 
 type AccessLogType = "entry" | "exit" | "no_log" | "forced_exit"
 type NotificationStatus = "sent" | "not_required"
@@ -27,6 +28,7 @@ interface AccessLog {
   id: string
   timestamp: string
   studentName: string
+  studentId?: string
   type: AccessLogType
   device: string
   notification: NotificationStatus
@@ -53,7 +55,6 @@ function formatDateTime(dateTimeString: string) {
 }
 
 export default function AccessLogsPage() {
-  const [showFilters, setShowFilters] = useState(false)
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
   const [logType, setLogType] = useState<string>("all")
@@ -92,6 +93,7 @@ export default function AccessLogsPage() {
         id: string
         timestamp: string
         studentName: string
+        studentId?: string
         type: string
         cardId?: string | null
         device: string
@@ -103,6 +105,7 @@ export default function AccessLogsPage() {
         id: log.id,
         timestamp: formatDateTime(log.timestamp),
         studentName: log.studentName,
+        studentId: log.studentId || undefined,
         type: log.type as AccessLogType,
         device: log.device || log.cardId || "不明",
         notification: log.notification as NotificationStatus,
@@ -226,15 +229,15 @@ export default function AccessLogsPage() {
   const getLogTypeBadgeVariant = (type: AccessLogType) => {
     switch (type) {
       case "entry":
-        return "default"
+        return "status"
       case "exit":
-        return "secondary"
+        return "neutral"
       case "forced_exit":
-        return "destructive"
+        return "danger"
       case "no_log":
-        return "outline"
+        return "warning"
       default:
-        return "outline"
+        return "neutral"
     }
   }
 
@@ -252,11 +255,11 @@ export default function AccessLogsPage() {
   const getNotificationBadgeVariant = (status: NotificationStatus) => {
     switch (status) {
       case "sent":
-        return "default"
+        return "status"
       case "not_required":
-        return "secondary"
+        return "neutral"
       default:
-        return "outline"
+        return "neutral"
     }
   }
 
@@ -266,17 +269,7 @@ export default function AccessLogsPage() {
       breadcrumbs={[{ label: "入退室ログ" }]}
       actions={
         <>
-          <Button
-            variant="outline"
-            size="sm"
-            className="gap-2 bg-transparent"
-            onClick={() => setShowFilters(!showFilters)}
-          >
-            <Filter className="h-4 w-4" />
-            <span className="hidden sm:inline">絞り込み</span>
-            {showFilters ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-          </Button>
-          <Button variant="default" size="sm" className="gap-2" onClick={handleExportCSV}>
+          <Button variant="secondary" size="sm" className="gap-2" onClick={handleExportCSV}>
             <Download className="h-4 w-4" />
             <span className="hidden sm:inline">CSV出力</span>
           </Button>
@@ -284,50 +277,56 @@ export default function AccessLogsPage() {
       }
     >
       <div className="space-y-4">
-        {showFilters && (
-          <Card>
-            <CardContent className="pt-6">
-              <div className="grid gap-4 md:grid-cols-4">
-                <div className="space-y-2">
-                  <Label htmlFor="start-date">開始日</Label>
-                  <Input id="start-date" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="end-date">終了日</Label>
-                  <Input id="end-date" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="log-type">種別</Label>
-                  <Select value={logType} onValueChange={setLogType}>
-                    <SelectTrigger id="log-type">
-                      <SelectValue placeholder="すべて" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">すべて</SelectItem>
-                      <SelectItem value="entry">入室</SelectItem>
-                      <SelectItem value="exit">退室</SelectItem>
-                      <SelectItem value="forced_exit">強制退室</SelectItem>
-                      <SelectItem value="no_log">ログ無し</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="search">生徒名検索</Label>
-                  <Input
-                    id="search"
-                    placeholder="生徒名を入力"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                  />
-                </div>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="grid gap-3 md:grid-cols-[160px_160px_200px_1fr]">
+              <div className="space-y-1.5">
+                <Label htmlFor="start-date" className="text-xs text-muted-foreground">
+                  開始日
+                </Label>
+                <Input id="start-date" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
               </div>
-            </CardContent>
-          </Card>
-        )}
+              <div className="space-y-1.5">
+                <Label htmlFor="end-date" className="text-xs text-muted-foreground">
+                  終了日
+                </Label>
+                <Input id="end-date" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="log-type" className="text-xs text-muted-foreground">
+                  種別
+                </Label>
+                <Select value={logType} onValueChange={setLogType}>
+                  <SelectTrigger id="log-type">
+                    <SelectValue placeholder="すべて" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">すべて</SelectItem>
+                    <SelectItem value="entry">入室</SelectItem>
+                    <SelectItem value="exit">退室</SelectItem>
+                    <SelectItem value="forced_exit">強制退室</SelectItem>
+                    <SelectItem value="no_log">ログ無し</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="search" className="text-xs text-muted-foreground">
+                  生徒名検索
+                </Label>
+                <Input
+                  id="search"
+                  placeholder="生徒名を入力"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Loading and Error Messages */}
         {isLoading && <div className="text-sm text-muted-foreground">読み込み中…</div>}
-        {error && <div className="text-sm text-red-600">エラー: {error}</div>}
+        {error && <div className="text-sm text-destructive">エラー: {error}</div>}
 
         <Card>
           <CardContent className="p-0">
@@ -358,7 +357,15 @@ export default function AccessLogsPage() {
                     filteredLogs.map((log) => (
                       <TableRow key={log.id}>
                         <TableCell className="font-mono text-sm">{log.timestamp}</TableCell>
-                        <TableCell className="font-medium">{log.studentName}</TableCell>
+                        <TableCell>
+                          {log.studentId ? (
+                            <Link className="link-accent" href={`/admin/students/${log.studentId}`}>
+                              {log.studentName}
+                            </Link>
+                          ) : (
+                            <span className="font-semibold">{log.studentName}</span>
+                          )}
+                        </TableCell>
                         <TableCell>
                           <Badge variant={getLogTypeBadgeVariant(log.type)}>
                             {getLogTypeLabel(log.type, log.pointsAwarded)}
@@ -476,7 +483,7 @@ export default function AccessLogsPage() {
                   />
                 </div>
 
-                <div className="rounded-lg bg-blue-50 p-3 text-sm text-blue-900 dark:bg-blue-950 dark:text-blue-100">
+                <div className="rounded-md border border-border bg-secondary p-3 text-sm text-foreground">
                   <p className="font-medium">自動記録される情報</p>
                   <ul className="mt-1 list-inside list-disc text-xs space-y-0.5">
                     <li>訂正者: 管理者 (admin@robodan.jp)</li>

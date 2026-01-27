@@ -141,30 +141,30 @@ export default function PointsDashboardPage() {
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">総獲得ポイント</CardTitle>
-                  <TrendingUp className="h-4 w-4 text-green-600" />
+                  <TrendingUp className="h-4 w-4 text-primary" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-green-600">{formatNumber(statistics.totalAwarded)}</div>
+                  <div className="text-2xl font-bold text-primary">{formatNumber(statistics.totalAwarded)}</div>
                   <p className="text-xs text-muted-foreground">期間内の獲得合計</p>
                 </CardContent>
               </Card>
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">総消費ポイント</CardTitle>
-                  <TrendingDown className="h-4 w-4 text-red-600" />
+                  <TrendingDown className="h-4 w-4 text-destructive" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-red-600">{formatNumber(statistics.totalConsumed)}</div>
+                  <div className="text-2xl font-bold text-destructive">{formatNumber(statistics.totalConsumed)}</div>
                   <p className="text-xs text-muted-foreground">期間内の消費合計</p>
                 </CardContent>
               </Card>
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">純増ポイント</CardTitle>
-                  <Coins className="h-4 w-4 text-blue-600" />
+                  <Coins className="h-4 w-4 text-primary" />
                 </CardHeader>
                 <CardContent>
-                  <div className={`text-2xl font-bold ${netPoints >= 0 ? "text-blue-600" : "text-red-600"}`}>
+                  <div className={`text-2xl font-bold ${netPoints >= 0 ? "text-primary" : "text-destructive"}`}>
                     {formatNumber(netPoints)}
                   </div>
                   <p className="text-xs text-muted-foreground">獲得 - 消費</p>

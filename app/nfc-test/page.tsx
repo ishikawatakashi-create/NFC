@@ -125,7 +125,7 @@ export default function NFCTestPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-100 p-4">
+    <div className="min-h-screen bg-background p-4">
       <Card className="max-w-2xl mx-auto">
         <CardHeader>
           <CardTitle className="text-2xl">🧪 NFC動作テスト</CardTitle>
@@ -160,11 +160,11 @@ export default function NFCTestPage() {
                     key={index}
                     className={
                       log.includes("❌")
-                        ? "text-red-400"
+                        ? "text-destructive"
                         : log.includes("✅")
-                        ? "text-green-400"
+                        ? "text-primary"
                         : log.includes("🎉")
-                        ? "text-yellow-400"
+                        ? "text-yellow-500"
                         : "text-gray-300"
                     }
                   >
@@ -198,4 +198,3 @@ export default function NFCTestPage() {
     </div>
   )
 }
-

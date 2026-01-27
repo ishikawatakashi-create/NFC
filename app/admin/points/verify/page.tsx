@@ -191,19 +191,19 @@ export default function PointsVerifyPage() {
                 </Card>
                 <Card>
                   <CardContent className="pt-6">
-                    <div className="text-2xl font-bold text-green-600">{summary.correct}</div>
+                    <div className="text-2xl font-bold text-primary">{summary.correct}</div>
                     <p className="text-xs text-muted-foreground">正常</p>
                   </CardContent>
                 </Card>
                 <Card>
                   <CardContent className="pt-6">
-                    <div className="text-2xl font-bold text-red-600">{summary.incorrect}</div>
+                    <div className="text-2xl font-bold text-destructive">{summary.incorrect}</div>
                     <p className="text-xs text-muted-foreground">不整合</p>
                   </CardContent>
                 </Card>
                 <Card>
                   <CardContent className="pt-6">
-                    <div className="text-2xl font-bold text-blue-600">{summary.fixed}</div>
+                    <div className="text-2xl font-bold text-primary">{summary.fixed}</div>
                     <p className="text-xs text-muted-foreground">修正済み</p>
                   </CardContent>
                 </Card>
@@ -259,7 +259,7 @@ export default function PointsVerifyPage() {
                         <TableCell className="text-right">{result.calculatedPoints}</TableCell>
                         <TableCell
                           className={`text-right font-semibold ${
-                            result.difference > 0 ? "text-green-600" : result.difference < 0 ? "text-red-600" : ""
+                            result.difference > 0 ? "text-primary" : result.difference < 0 ? "text-destructive" : ""
                           }`}
                         >
                           {result.difference > 0 ? "+" : ""}
@@ -267,12 +267,12 @@ export default function PointsVerifyPage() {
                         </TableCell>
                         <TableCell>
                           {result.isCorrect ? (
-                            <Badge variant="default" className="bg-green-600">
+                            <Badge variant="status">
                               <CheckCircle className="h-3 w-3 mr-1" />
                               正常
                             </Badge>
                           ) : (
-                            <Badge variant="destructive">
+                            <Badge variant="danger">
                               <AlertTriangle className="h-3 w-3 mr-1" />
                               不整合
                             </Badge>

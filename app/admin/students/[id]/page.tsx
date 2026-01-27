@@ -941,7 +941,7 @@ export default function StudentDetailPage({
         <Card>
           <CardContent className="pt-6">
             <div className="text-center">
-              <p className="text-sm text-red-600 mb-4">エラー: {error || "ユーザーが見つかりません"}</p>
+              <p className="text-sm text-destructive mb-4">エラー: {error || "ユーザーが見つかりません"}</p>
               <Button variant="outline" onClick={() => router.push("/admin/students")}>
                 <ArrowLeft className="h-4 w-4 mr-2" />
                 ユーザー一覧に戻る
@@ -1395,7 +1395,7 @@ export default function StudentDetailPage({
                               {getTransactionTypeLabel(transaction.transactionType)}
                             </Badge>
                           </TableCell>
-                          <TableCell className={`text-right font-semibold ${transaction.points > 0 ? "text-green-600" : "text-red-600"}`}>
+                        <TableCell className={`text-right font-semibold ${transaction.points > 0 ? "text-primary" : "text-destructive"}`}>
                             {transaction.points > 0 ? "+" : ""}{transaction.points} pt
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate" title={transaction.description || ""}>
@@ -1507,16 +1507,16 @@ export default function StudentDetailPage({
                       <p className="text-xs text-muted-foreground">LINE紐づけ用</p>
                     </div>
                   )}
-                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-900 space-y-2">
+                  <div className="bg-secondary border border-border rounded-md p-3 text-xs text-foreground space-y-2">
                     <p className="font-medium">使用方法：</p>
                     <ol className="list-decimal list-inside space-y-1 ml-2">
                       <li>このQRコードを印刷して、NFCカードと一緒に親御さんにお渡しください</li>
                       <li>親御さんがLINE公式アカウントに「紐づけ」とメッセージを送信します</li>
                       <li>LINE公式アカウントから返信されたURLをタップします</li>
                       <li>返信されたURLのページで、このQRコードを読み取ります</li>
-                      <li className="font-medium text-blue-700">自動的にカードIDが入力され、紐づけが完了します</li>
+                      <li className="font-medium text-primary">自動的にカードIDが入力され、紐づけが完了します</li>
                     </ol>
-                    <p className="text-xs text-blue-800 mt-2">
+                    <p className="text-xs text-muted-foreground mt-2">
                       ※iPhoneユーザーでも、QRコードを読み取るだけで簡単に紐づけできます
                     </p>
                   </div>

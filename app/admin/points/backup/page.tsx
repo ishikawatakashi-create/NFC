@@ -268,7 +268,7 @@ export default function PointsBackupPage() {
                               setDeleteDialogOpen(true)
                             }}
                             disabled={isRestoring || isDeleting}
-                            className="gap-1 text-red-600"
+                            className="gap-1 text-destructive"
                           >
                             <Trash2 className="h-3 w-3" />
                             削除

@@ -111,7 +111,7 @@ export function AdminLayout({ children, pageTitle, breadcrumbs, actions }: Admin
   }
 
   return (
-    <div className="min-h-screen bg-muted/30">
+    <div className="min-h-screen bg-background">
       {/* Mobile sidebar backdrop */}
       {sidebarOpen && (
         <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} />
@@ -120,14 +120,19 @@ export function AdminLayout({ children, pageTitle, breadcrumbs, actions }: Admin
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed left-0 top-0 z-50 h-full w-64 transform border-r border-border bg-card transition-transform duration-200 ease-in-out lg:translate-x-0",
+          "fixed left-0 top-0 z-50 h-full w-64 transform border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-transform duration-200 ease-in-out lg:translate-x-0",
           sidebarOpen ? "translate-x-0" : "-translate-x-full",
         )}
       >
         {/* Logo/Title */}
-        <div className="flex h-16 items-center justify-between border-b border-border px-6">
-          <h1 className="text-lg font-semibold">ロボ団一宮校 入退室管理</h1>
-          <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setSidebarOpen(false)}>
+        <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-6">
+          <h1 className="text-lg font-semibold text-sidebar-foreground">ロボ団一宮校 入退室管理</h1>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="lg:hidden bg-sidebar-accent text-sidebar-foreground border-sidebar-border hover:bg-sidebar-accent/80"
+            onClick={() => setSidebarOpen(false)}
+          >
             <X className="h-5 w-5" />
           </Button>
         </div>
@@ -144,10 +149,10 @@ export function AdminLayout({ children, pageTitle, breadcrumbs, actions }: Admin
                 href={item.href}
                 onClick={() => setSidebarOpen(false)}
                 className={cn(
-                  "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors border-l-2",
                   isActive
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                    ? "bg-sidebar-accent text-sidebar-foreground border-primary"
+                    : "text-sidebar-foreground/70 border-transparent hover:bg-sidebar-accent hover:text-sidebar-foreground",
                 )}
               >
                 <Icon className="h-5 w-5" />
@@ -175,7 +180,7 @@ export function AdminLayout({ children, pageTitle, breadcrumbs, actions }: Admin
                   <div key={index} className="flex items-center gap-2">
                     {index > 0 && <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                     {crumb.href ? (
-                      <Link href={crumb.href} className="text-muted-foreground hover:text-foreground">
+                      <Link href={crumb.href} className="link-accent">
                         {crumb.label}
                       </Link>
                     ) : (
@@ -185,7 +190,7 @@ export function AdminLayout({ children, pageTitle, breadcrumbs, actions }: Admin
                 ))}
               </nav>
             ) : (
-              <h2 className="text-lg font-semibold">{pageTitle}</h2>
+              <h2 className="text-[20px] font-semibold">{pageTitle}</h2>
             )}
           </div>
 

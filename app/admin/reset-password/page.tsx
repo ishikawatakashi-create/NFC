@@ -140,7 +140,7 @@ function ResetPasswordContent() {
   }, [searchParams, supabase])
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-center">パスワード再設定</CardTitle>
@@ -150,9 +150,9 @@ function ResetPasswordContent() {
         </CardHeader>
         <CardContent>
           {isSuccess ? (
-            <Alert className="border-green-500 bg-green-50">
-              <CheckCircle2 className="h-4 w-4 text-green-600" />
-              <AlertDescription className="text-green-800">
+            <Alert className="border-primary bg-secondary">
+              <CheckCircle2 className="h-4 w-4 text-primary" />
+              <AlertDescription className="text-foreground">
                 パスワードが正常に更新されました。
                 <br />
                 3秒後にログインページにリダイレクトします。
@@ -242,7 +242,7 @@ function ResetPasswordContent() {
 export default function ResetPasswordPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
         <Card className="w-full max-w-md">
           <CardContent className="pt-6">
             <div className="text-center">

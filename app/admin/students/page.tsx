@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Plus, Download, Search, Eye, UserPlus, Pencil, Trash2, CreditCard, Upload, FileDown } from "lucide-react"
 import { NFC_CONSTANTS } from "@/lib/constants"
@@ -174,15 +175,15 @@ export default function StudentsPage() {
   const getStatusVariant = (status: StudentStatus) => {
     switch (status) {
       case "active":
-        return "default"
+        return "status"
       case "suspended":
-        return "secondary"
+        return "neutral"
       case "withdrawn":
-        return "outline"
+        return "neutral"
       case "graduated":
-        return "secondary"
+        return "neutral"
       case "disabled":
-        return "destructive"
+        return "danger"
     }
   }
 
@@ -857,14 +858,13 @@ export default function StudentsPage() {
   return (
     <AdminLayout
       pageTitle="ユーザー一覧"
-      breadcrumbs={[{ label: "ユーザー一覧" }]}
       actions={
         <>
-          <Button variant="outline" size="sm" className="gap-2 bg-transparent" onClick={handleExportCSV}>
+          <Button variant="secondary" size="sm" className="gap-2" onClick={handleExportCSV}>
             <Download className="h-4 w-4" />
             <span className="hidden sm:inline">CSV出力</span>
           </Button>
-          <Button variant="outline" size="sm" className="gap-2" onClick={() => setIsBulkImportDialogOpen(true)}>
+          <Button variant="secondary" size="sm" className="gap-2" onClick={() => setIsBulkImportDialogOpen(true)}>
             <Upload className="h-4 w-4" />
             <span className="hidden sm:inline">CSVで一括登録</span>
           </Button>
@@ -908,7 +908,7 @@ export default function StudentsPage() {
 
         {/* Loading and Error Messages */}
         {isLoading && <div className="text-sm text-muted-foreground">読み込み中…</div>}
-        {error && <div className="text-sm text-red-600">エラー: {error}</div>}
+        {error && <div className="text-sm text-destructive">エラー: {error}</div>}
 
         {/* Students Table */}
         <Card>
@@ -945,12 +945,12 @@ export default function StudentsPage() {
                     {filteredStudents.map((student) => (
                       <TableRow
                         key={student.id}
-                        className="cursor-pointer hover:bg-muted/50"
+                        className="cursor-pointer"
                         onClick={() => handleRowClick(student.id)}
                       >
-                        <TableCell className="font-medium">{student.name}</TableCell>
+                        <TableCell className="link-accent">{student.name}</TableCell>
                         <TableCell>
-                          <Badge variant="outline">{getRoleLabel(student.role)}</Badge>
+                          <Badge variant="neutral">{getRoleLabel(student.role)}</Badge>
                         </TableCell>
                         <TableCell>{student.grade || "-"}</TableCell>
                         <TableCell>
@@ -959,9 +959,9 @@ export default function StudentsPage() {
                         <TableCell>{getClassLabel(student.class)}</TableCell>
                         <TableCell>
                           {student.card_registered ? (
-                            <Badge variant="default">登録済み</Badge>
+                            <Badge variant="status">登録済み</Badge>
                           ) : (
-                            <Badge variant="outline">未登録</Badge>
+                            <Badge variant="neutral">未登録</Badge>
                           )}
                         </TableCell>
                         <TableCell className="font-mono text-sm">{student.cardId || "-"}</TableCell>
@@ -972,69 +972,89 @@ export default function StudentsPage() {
                           <div className="flex justify-end gap-2">
                             {student.card_registered ? (
                               <>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="gap-2 cursor-pointer"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleRegisterCard(student)
-                                  }}
-                                >
-                                  <CreditCard className="h-4 w-4" />
-                                  変更
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="gap-2 text-destructive hover:text-destructive cursor-pointer"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleDeleteCard(student)
-                                  }}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                  削除
-                                </Button>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="secondary"
+                                      size="icon-sm"
+                                      aria-label="カード変更"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        handleRegisterCard(student)
+                                      }}
+                                    >
+                                      <CreditCard className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top">カード変更</TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="destructive"
+                                      size="icon-sm"
+                                      aria-label="カード削除"
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        handleDeleteCard(student)
+                                      }}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top">カード削除</TooltipContent>
+                                </Tooltip>
                               </>
                             ) : (
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="gap-2 cursor-pointer"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  handleRegisterCard(student)
-                                }}
-                              >
-                                <CreditCard className="h-4 w-4" />
-                                カード登録
-                              </Button>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="secondary"
+                                    size="icon-sm"
+                                    aria-label="カード登録"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      handleRegisterCard(student)
+                                    }}
+                                  >
+                                    <CreditCard className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="top">カード登録</TooltipContent>
+                              </Tooltip>
                             )}
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="gap-2 cursor-pointer"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleEditStudent(student)
-                              }}
-                            >
-                              <Pencil className="h-4 w-4" />
-                              編集
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="gap-2 cursor-pointer"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleRowClick(student.id)
-                              }}
-                            >
-                              <Eye className="h-4 w-4" />
-                              詳細
-                            </Button>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="secondary"
+                                  size="icon-sm"
+                                  aria-label="編集"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleEditStudent(student)
+                                  }}
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">編集</TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="secondary"
+                                  size="icon-sm"
+                                  aria-label="詳細"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleRowClick(student.id)
+                                  }}
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">詳細</TooltipContent>
+                            </Tooltip>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -1320,7 +1340,7 @@ export default function StudentsPage() {
                     <li>カードを端末にタッチしてください</li>
                   </ol>
                 </div>
-                <div className="rounded-md bg-yellow-50 p-4 text-sm">
+                <div className="rounded-md border border-yellow-500/40 bg-secondary p-4 text-sm">
                   <p className="font-semibold mb-2 text-yellow-900">⚠️ 注意: Suica、マイナンバーカード等は読み取れません</p>
                   <p className="text-xs text-yellow-800">
                     これらのカードを使用する場合は、「手動で入力」を選択してください。
@@ -1350,30 +1370,30 @@ export default function StudentsPage() {
             )}
 
             {nfcStatus === "issuing" && (
-              <div className="flex flex-col items-center gap-3 rounded-md bg-blue-50 p-6">
-                <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent"></div>
-                <p className="text-sm font-semibold text-blue-900">カードを端末にタッチしてください</p>
-                <p className="text-xs text-blue-700">シリアル番号を読み取り中...</p>
+              <div className="flex flex-col items-center gap-3 rounded-md border border-border bg-secondary p-6">
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+                <p className="text-sm font-semibold text-primary">カードを端末にタッチしてください</p>
+                <p className="text-xs text-muted-foreground">シリアル番号を読み取り中...</p>
               </div>
             )}
 
             {nfcStatus === "writing" && (
-              <div className="flex flex-col items-center gap-3 rounded-md bg-blue-50 p-6">
-                <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent"></div>
-                <p className="text-sm font-semibold text-blue-900">登録中...</p>
-                <p className="text-xs text-blue-700">サーバーに保存しています...</p>
+              <div className="flex flex-col items-center gap-3 rounded-md border border-border bg-secondary p-6">
+                <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+                <p className="text-sm font-semibold text-primary">登録中...</p>
+                <p className="text-xs text-muted-foreground">サーバーに保存しています...</p>
               </div>
             )}
 
             {nfcStatus === "success" && (
               <div className="space-y-3">
-                <div className="rounded-md bg-green-50 p-4">
-                  <p className="text-sm font-semibold text-green-900 mb-2">✓ 登録完了</p>
-                  <p className="text-xs text-green-700">
+                <div className="rounded-md border border-border bg-secondary p-4">
+                  <p className="text-sm font-semibold text-primary mb-2">✓ 登録完了</p>
+                  <p className="text-xs text-muted-foreground">
                     カードのシリアル番号を登録しました。
                   </p>
                   {registeredToken && (
-                    <p className="text-xs text-green-700 mt-2 font-mono break-all">
+                    <p className="text-xs text-muted-foreground mt-2 font-mono break-all">
                       カードID: {registeredToken}
                     </p>
                   )}
@@ -1383,9 +1403,9 @@ export default function StudentsPage() {
 
             {nfcStatus === "error" && (
               <div className="space-y-3">
-                <div className="rounded-md bg-red-50 p-4">
-                  <p className="text-sm font-semibold text-red-900 mb-2">✗ エラー</p>
-                  <p className="text-xs text-red-700">{nfcError}</p>
+                <div className="rounded-md border border-destructive/40 bg-secondary p-4">
+                  <p className="text-sm font-semibold text-destructive mb-2">✗ エラー</p>
+                  <p className="text-xs text-destructive">{nfcError}</p>
                 </div>
                 {registeredToken && (
                   <Button
@@ -1482,21 +1502,21 @@ export default function StudentsPage() {
               />
             </div>
             {uploadError && (
-              <div className="rounded-md bg-red-50 p-4">
-                <p className="text-sm font-semibold text-red-900 mb-2">エラー</p>
-                <p className="text-xs text-red-700">{uploadError}</p>
+              <div className="rounded-md border border-destructive/40 bg-secondary p-4">
+                <p className="text-sm font-semibold text-destructive mb-2">エラー</p>
+                <p className="text-xs text-destructive">{uploadError}</p>
               </div>
             )}
             {uploadSuccess && uploadResult && (
-              <div className="rounded-md bg-green-50 p-4">
-                <p className="text-sm font-semibold text-green-900 mb-2">登録完了</p>
-                <p className="text-xs text-green-700">
+              <div className="rounded-md border border-border bg-secondary p-4">
+                <p className="text-sm font-semibold text-primary mb-2">登録完了</p>
+                <p className="text-xs text-muted-foreground">
                   成功: {uploadResult.success}件、失敗: {uploadResult.failed}件
                 </p>
                 {uploadResult.errors.length > 0 && (
                   <div className="mt-2">
-                    <p className="text-xs font-semibold text-green-900">エラー詳細：</p>
-                    <ul className="text-xs text-green-700 list-disc list-inside mt-1">
+                    <p className="text-xs font-semibold text-foreground">エラー詳細：</p>
+                    <ul className="text-xs text-muted-foreground list-disc list-inside mt-1">
                       {uploadResult.errors.map((error, index) => (
                         <li key={index}>{error}</li>
                       ))}

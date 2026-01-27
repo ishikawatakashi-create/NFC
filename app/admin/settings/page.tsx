@@ -138,43 +138,59 @@ export default function SettingsPage() {
             <CardDescription>属性ごと、または個別に利用開始時間と強制退室時間を設定します</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <Button
-                variant="outline"
-                className="h-auto flex-col gap-2 py-6"
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <button
+                type="button"
+                className="group rounded-md border border-border border-t-2 border-t-[color:var(--link)] bg-card px-4 py-3 text-left transition-colors hover:bg-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                 onClick={() => setStudentDialogOpen(true)}
               >
-                <Clock className="h-6 w-6" />
-                <span className="font-semibold">生徒</span>
-                <span className="text-xs text-muted-foreground">利用可能時間を設定</span>
-              </Button>
-              <Button
-                variant="outline"
-                className="h-auto flex-col gap-2 py-6"
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm link-accent">生徒</p>
+                    <p className="text-xs text-muted-foreground">利用可能時間を設定</p>
+                  </div>
+                  <Clock className="h-4 w-4 text-muted-foreground group-hover:text-foreground" />
+                </div>
+              </button>
+              <button
+                type="button"
+                className="group rounded-md border border-border border-t-2 border-t-[color:var(--link)] bg-card px-4 py-3 text-left transition-colors hover:bg-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                 onClick={() => setPartTimeDialogOpen(true)}
               >
-                <Clock className="h-6 w-6" />
-                <span className="font-semibold">アルバイト</span>
-                <span className="text-xs text-muted-foreground">利用可能時間を設定</span>
-              </Button>
-              <Button
-                variant="outline"
-                className="h-auto flex-col gap-2 py-6"
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm link-accent">アルバイト</p>
+                    <p className="text-xs text-muted-foreground">利用可能時間を設定</p>
+                  </div>
+                  <Clock className="h-4 w-4 text-muted-foreground group-hover:text-foreground" />
+                </div>
+              </button>
+              <button
+                type="button"
+                className="group rounded-md border border-border border-t-2 border-t-[color:var(--link)] bg-card px-4 py-3 text-left transition-colors hover:bg-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                 onClick={() => setFullTimeDialogOpen(true)}
               >
-                <Clock className="h-6 w-6" />
-                <span className="font-semibold">正社員</span>
-                <span className="text-xs text-muted-foreground">利用可能時間を設定</span>
-              </Button>
-              <Button
-                variant="outline"
-                className="h-auto flex-col gap-2 py-6"
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm link-accent">正社員</p>
+                    <p className="text-xs text-muted-foreground">利用可能時間を設定</p>
+                  </div>
+                  <Clock className="h-4 w-4 text-muted-foreground group-hover:text-foreground" />
+                </div>
+              </button>
+              <button
+                type="button"
+                className="group rounded-md border border-border border-t-2 border-t-[color:var(--link)] bg-card px-4 py-3 text-left transition-colors hover:bg-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                 onClick={() => setIndividualDialogOpen(true)}
               >
-                <Clock className="h-6 w-6" />
-                <span className="font-semibold">個別設定</span>
-                <span className="text-xs text-muted-foreground">ユーザーごとに設定</span>
-              </Button>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm link-accent">個別設定</p>
+                    <p className="text-xs text-muted-foreground">ユーザーごとに設定</p>
+                  </div>
+                  <Clock className="h-4 w-4 text-muted-foreground group-hover:text-foreground" />
+                </div>
+              </button>
             </div>
             <Alert>
               <AlertDescription className="text-sm">

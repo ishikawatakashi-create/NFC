@@ -116,7 +116,7 @@ export default function AdminRegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-center">初回管理者登録</CardTitle>
@@ -127,9 +127,9 @@ export default function AdminRegisterPage() {
         <CardContent>
           {success ? (
             <div className="space-y-4">
-              <Alert className="border-green-200 bg-green-50 dark:bg-green-900/20">
-                <CheckCircle2 className="h-4 w-4 text-green-600" />
-                <AlertDescription className="text-green-800 dark:text-green-200">
+              <Alert className="border-primary bg-secondary">
+                <CheckCircle2 className="h-4 w-4 text-primary" />
+                <AlertDescription className="text-foreground">
                   管理者が正常に登録されました。3秒後にログインページにリダイレクトします。
                 </AlertDescription>
               </Alert>

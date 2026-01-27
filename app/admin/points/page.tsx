@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
 import { AlertTriangle, Save, Coins, Users, Plus, Minus, Download, CheckCircle, Database, BarChart3, Upload, Loader2 } from "lucide-react"
 import { useState, useEffect, useRef } from "react"
+import Link from "next/link"
 import { ClassBonusThresholdDialog } from "@/components/admin/class-bonus-threshold-dialog"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -967,40 +968,46 @@ export default function PointsPage() {
     <AdminLayout pageTitle="ポイント管理" breadcrumbs={[{ label: "ポイント管理" }]}>
       <div className="mx-auto max-w-7xl space-y-6">
         {/* 機能メニュー */}
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card className="cursor-pointer hover:bg-accent transition-colors" onClick={() => window.location.href = "/admin/points/verify"}>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <CheckCircle className="h-8 w-8 text-blue-600" />
-                <div>
-                  <h3 className="font-semibold">整合性チェック</h3>
-                  <p className="text-sm text-muted-foreground">ポイントの整合性を検証・修正</p>
-                </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          <button
+            type="button"
+            className="group rounded-md border border-border border-t-2 border-t-[color:var(--link)] bg-card px-4 py-3 text-left transition-colors hover:bg-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            onClick={() => (window.location.href = "/admin/points/verify")}
+          >
+            <div className="flex items-center gap-3">
+              <CheckCircle className="h-5 w-5 text-muted-foreground group-hover:text-foreground" />
+              <div className="space-y-0.5">
+                <h3 className="text-sm font-semibold">整合性チェック</h3>
+                <p className="text-xs text-muted-foreground">ポイントの整合性を検証・修正</p>
               </div>
-            </CardContent>
-          </Card>
-          <Card className="cursor-pointer hover:bg-accent transition-colors" onClick={() => window.location.href = "/admin/points/backup"}>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <Database className="h-8 w-8 text-green-600" />
-                <div>
-                  <h3 className="font-semibold">バックアップ・復元</h3>
-                  <p className="text-sm text-muted-foreground">ポイント状態の保存・復元</p>
-                </div>
+            </div>
+          </button>
+          <button
+            type="button"
+            className="group rounded-md border border-border border-t-2 border-t-[color:var(--link)] bg-card px-4 py-3 text-left transition-colors hover:bg-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            onClick={() => (window.location.href = "/admin/points/backup")}
+          >
+            <div className="flex items-center gap-3">
+              <Database className="h-5 w-5 text-muted-foreground group-hover:text-foreground" />
+              <div className="space-y-0.5">
+                <h3 className="text-sm font-semibold">バックアップ・復元</h3>
+                <p className="text-xs text-muted-foreground">ポイント状態の保存・復元</p>
               </div>
-            </CardContent>
-          </Card>
-          <Card className="cursor-pointer hover:bg-accent transition-colors" onClick={() => window.location.href = "/admin/points/dashboard"}>
-            <CardContent className="pt-6">
-              <div className="flex items-center gap-3">
-                <BarChart3 className="h-8 w-8 text-purple-600" />
-                <div>
-                  <h3 className="font-semibold">統計ダッシュボード</h3>
-                  <p className="text-sm text-muted-foreground">ポイント運用の可視化</p>
-                </div>
+            </div>
+          </button>
+          <button
+            type="button"
+            className="group rounded-md border border-border border-t-2 border-t-[color:var(--link)] bg-card px-4 py-3 text-left transition-colors hover:bg-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+            onClick={() => (window.location.href = "/admin/points/dashboard")}
+          >
+            <div className="flex items-center gap-3">
+              <BarChart3 className="h-5 w-5 text-muted-foreground group-hover:text-foreground" />
+              <div className="space-y-0.5">
+                <h3 className="text-sm font-semibold">統計ダッシュボード</h3>
+                <p className="text-xs text-muted-foreground">ポイント運用の可視化</p>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </button>
         </div>
         {/* 統計サマリー */}
         <div className="grid gap-4 md:grid-cols-3">
@@ -1216,38 +1223,43 @@ export default function PointsPage() {
             ) : (
               <div className="space-y-4">
                 {/* トップ3のビジュアル表示 */}
-                <div className="grid gap-4 md:grid-cols-3">
+                <div className="grid gap-3 md:grid-cols-3">
                   {students.slice(0, 3).map((student, index) => {
                     const points = rankingType === "monthly" ? (student as any).monthly_points || 0 : student.current_points
                     return (
-                      <Card key={student.id} className={index === 0 ? "border-primary" : ""}>
-                        <CardContent className="pt-6">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <Badge variant={index === 0 ? "default" : "secondary"}>
-                                  {index + 1}位
-                                </Badge>
-                                <button
-                                  onClick={() => handleStudentClick(student)}
-                                  className="font-semibold hover:underline cursor-pointer"
-                                >
-                                  {student.name}
-                                </button>
-                              </div>
-                              {student.class && (
-                                <p className="text-sm text-muted-foreground mt-1">
-                                  {getClassLabel(student.class)}
-                                </p>
-                              )}
+                      <div
+                        key={student.id}
+                        className={`rounded-md border border-border border-t-2 ${index === 0 ? "border-t-primary" : "border-t-[color:var(--link)]"} bg-card px-4 py-3`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Badge variant={index === 0 ? "default" : "secondary"}>
+                                {index + 1}位
+                              </Badge>
+                              <Link className="link-accent" href={`/admin/students/${student.id}`}>
+                                {student.name}
+                              </Link>
+                              <button
+                                type="button"
+                                className="text-xs text-muted-foreground hover:text-foreground hover:underline underline-offset-2"
+                                onClick={() => handleStudentClick(student)}
+                              >
+                                履歴
+                              </button>
                             </div>
-                            <div className="text-right">
-                              <div className="text-2xl font-bold">{points}</div>
-                              <div className="text-xs text-muted-foreground">pt</div>
-                            </div>
+                            {student.class && (
+                              <p className="text-xs text-muted-foreground">
+                                {getClassLabel(student.class)}
+                              </p>
+                            )}
                           </div>
-                        </CardContent>
-                      </Card>
+                          <div className="text-right">
+                            <div className="text-2xl font-bold">{points}</div>
+                            <div className="text-xs text-muted-foreground">pt</div>
+                          </div>
+                        </div>
+                      </div>
                     )
                   })}
                 </div>
@@ -1284,13 +1296,19 @@ export default function PointsPage() {
                           <TableCell>
                             <Badge variant={index < 3 ? "default" : "outline"}>{index + 1}</Badge>
                           </TableCell>
-                          <TableCell className="font-medium">
-                            <button
-                              onClick={() => handleStudentClick(student)}
-                              className="hover:underline cursor-pointer"
-                            >
-                              {student.name}
-                            </button>
+                          <TableCell>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Link className="link-accent" href={`/admin/students/${student.id}`}>
+                                {student.name}
+                              </Link>
+                              <button
+                                type="button"
+                                className="text-xs text-muted-foreground hover:text-foreground hover:underline underline-offset-2"
+                                onClick={() => handleStudentClick(student)}
+                              >
+                                履歴
+                              </button>
+                            </div>
                           </TableCell>
                           <TableCell>{getClassLabel(student.class)}</TableCell>
                           <TableCell className="text-right font-semibold">{points} pt</TableCell>
@@ -1311,9 +1329,9 @@ export default function PointsPage() {
             <CardDescription>入室時のポイント付与に関する設定を行います</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Alert className="bg-blue-50 border-blue-200">
-              <AlertDescription className="text-sm">
-                <strong>💡 ポイント付与の仕組み：</strong>
+            <Alert className="border-primary bg-secondary">
+              <AlertDescription className="text-sm text-foreground">
+                <strong>ポイント付与の仕組み：</strong>
                 <ul className="list-disc list-inside mt-2 space-y-1">
                   <li><strong>入室ポイント</strong>：ここで設定した値が入室時に付与されます（生徒のみ対象）</li>
                   <li><strong>ボーナスポイント</strong>：月間入室回数が閾値を超えると、入室ポイントとは別に自動付与されます</li>
@@ -1377,47 +1395,57 @@ export default function PointsPage() {
           <CardContent className="space-y-4">
             <div>
               <h3 className="mb-2 text-sm font-medium">クラス別設定</h3>
-                <div className="grid gap-4 sm:grid-cols-5">
-                  <Button
-                    variant="outline"
-                    className="h-auto flex-col gap-2 py-6"
+                <div className="grid gap-3 sm:grid-cols-5">
+                  <button
+                    type="button"
+                    className="group rounded-md border border-border border-t-2 border-t-[color:var(--link)] bg-card px-4 py-3 text-left transition-colors hover:bg-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                     onClick={() => setKindergartenBonusDialogOpen(true)}
                   >
-                    <span className="font-semibold">キンダー</span>
-                    <span className="text-xs text-muted-foreground">ボーナス閾値を設定</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="h-auto flex-col gap-2 py-6"
+                    <div className="space-y-1">
+                      <p className="text-sm link-accent">キンダー</p>
+                      <p className="text-xs text-muted-foreground">ボーナス閾値を設定</p>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    className="group rounded-md border border-border border-t-2 border-t-[color:var(--link)] bg-card px-4 py-3 text-left transition-colors hover:bg-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                     onClick={() => setBeginnerBonusDialogOpen(true)}
                   >
-                    <span className="font-semibold">ビギナー</span>
-                    <span className="text-xs text-muted-foreground">ボーナス閾値を設定</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="h-auto flex-col gap-2 py-6"
+                    <div className="space-y-1">
+                      <p className="text-sm link-accent">ビギナー</p>
+                      <p className="text-xs text-muted-foreground">ボーナス閾値を設定</p>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    className="group rounded-md border border-border border-t-2 border-t-[color:var(--link)] bg-card px-4 py-3 text-left transition-colors hover:bg-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                     onClick={() => setChallengerBonusDialogOpen(true)}
                   >
-                    <span className="font-semibold">チャレンジャー</span>
-                    <span className="text-xs text-muted-foreground">ボーナス閾値を設定</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="h-auto flex-col gap-2 py-6"
+                    <div className="space-y-1">
+                      <p className="text-sm link-accent">チャレンジャー</p>
+                      <p className="text-xs text-muted-foreground">ボーナス閾値を設定</p>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    className="group rounded-md border border-border border-t-2 border-t-[color:var(--link)] bg-card px-4 py-3 text-left transition-colors hover:bg-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                     onClick={() => setCreatorBonusDialogOpen(true)}
                   >
-                    <span className="font-semibold">クリエイター</span>
-                    <span className="text-xs text-muted-foreground">ボーナス閾値を設定</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="h-auto flex-col gap-2 py-6"
+                    <div className="space-y-1">
+                      <p className="text-sm link-accent">クリエイター</p>
+                      <p className="text-xs text-muted-foreground">ボーナス閾値を設定</p>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    className="group rounded-md border border-border border-t-2 border-t-[color:var(--link)] bg-card px-4 py-3 text-left transition-colors hover:bg-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
                     onClick={() => setInnovatorBonusDialogOpen(true)}
                   >
-                    <span className="font-semibold">イノベーター</span>
-                    <span className="text-xs text-muted-foreground">ボーナス閾値を設定</span>
-                  </Button>
+                    <div className="space-y-1">
+                      <p className="text-sm link-accent">イノベーター</p>
+                      <p className="text-xs text-muted-foreground">ボーナス閾値を設定</p>
+                    </div>
+                  </button>
                 </div>
             </div>
             <Alert>
@@ -1726,7 +1754,7 @@ export default function PointsPage() {
                         </TableCell>
                         <TableCell
                           className={`text-right font-semibold ${
-                            transaction.points > 0 ? "text-green-600" : "text-red-600"
+                            transaction.points > 0 ? "text-primary" : "text-destructive"
                           }`}
                         >
                           {transaction.points > 0 ? "+" : ""}

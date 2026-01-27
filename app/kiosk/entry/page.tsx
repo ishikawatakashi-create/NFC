@@ -248,16 +248,27 @@ export default function KioskEntryPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 flex items-center justify-center p-4">
-      <Card className="w-full max-w-2xl">
+    <div className="min-h-screen bg-muted">
+      <div className="border-b border-sidebar-border bg-sidebar text-sidebar-foreground">
+        <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-2 text-sm font-semibold">
+            <span className="inline-flex h-2 w-2 rounded-full bg-primary" />
+            ロボ団一宮校 入退室管理
+          </div>
+          <span className="text-xs text-sidebar-foreground/70">Kiosk / Entry</span>
+        </div>
+        <div className="h-0.5 bg-primary" />
+      </div>
+      <div className="flex items-center justify-center p-4">
+        <Card className="w-full max-w-2xl">
         <CardHeader className="text-center">
           <CardTitle className="text-3xl font-bold">入口側</CardTitle>
           <p className="text-muted-foreground mt-2">NFCカードをタッチして入室を記録してください</p>
         </CardHeader>
         <CardContent className="space-y-6">
           {!isNfcSupported && (
-            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-              <p className="text-sm text-yellow-800 dark:text-yellow-200">
+            <div className="bg-secondary border border-border rounded-md p-4">
+              <p className="text-sm text-muted-foreground">
                 このデバイスはNFCをサポートしていません。NFC対応デバイスでアクセスしてください。
               </p>
             </div>
@@ -271,38 +282,38 @@ export default function KioskEntryPage() {
                   {/* 端末の背面を示すアイコン */}
                   <div className="flex flex-col items-center space-y-2">
                     <div className="relative">
-                      <Smartphone className="w-24 h-24 text-blue-600 dark:text-blue-400" />
+                      <Smartphone className="w-24 h-24 text-primary" />
                       <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2">
-                        <ArrowDown className="w-8 h-8 text-blue-600 dark:text-blue-400 animate-bounce" />
+                        <ArrowDown className="w-8 h-8 text-primary animate-bounce" />
                       </div>
                     </div>
                     {/* カードアイコン（表側を見せながら背面に当てる様子） */}
                     <div className="relative mt-4">
                       <div className="flex items-center space-x-2">
-                        <CreditCard className="w-12 h-12 text-blue-600 dark:text-blue-400" />
-                        <RotateCw className="w-6 h-6 text-blue-600 dark:text-blue-400 animate-spin" style={{ animationDuration: '2s' }} />
+                        <CreditCard className="w-12 h-12 text-primary" />
+                        <RotateCw className="w-6 h-6 text-primary animate-spin" style={{ animationDuration: '2s' }} />
                       </div>
                     </div>
                   </div>
                 </div>
                 
-                <div className="bg-blue-50 dark:bg-blue-900/30 border-2 border-blue-300 dark:border-blue-700 rounded-lg p-4 w-full max-w-md">
-                  <p className="text-center font-semibold text-blue-900 dark:text-blue-100 text-lg mb-2">
+                <div className="bg-secondary border border-border rounded-md p-4 w-full max-w-md">
+                  <p className="text-center font-semibold text-foreground text-lg mb-2">
                     端末の背面にカードを当ててください
                   </p>
-                  <p className="text-center text-sm text-blue-700 dark:text-blue-300">
+                  <p className="text-center text-sm text-muted-foreground">
                     カードの表側を上に向けて、端末の背面中央に当ててください
                   </p>
                 </div>
                 
-                <Loader2 className="w-8 h-8 text-blue-600 dark:text-blue-400 animate-spin" />
+                <Loader2 className="w-8 h-8 text-primary animate-spin" />
               </div>
             ) : (
               // 待機中: 通常の表示
               <>
                 <div className="relative">
-                  <div className="w-32 h-32 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                    <CreditCard className="w-16 h-16 text-blue-600 dark:text-blue-400" />
+                  <div className="w-32 h-32 rounded-full bg-secondary flex items-center justify-center">
+                    <CreditCard className="w-16 h-16 text-primary" />
                   </div>
                 </div>
 
@@ -315,9 +326,9 @@ export default function KioskEntryPage() {
                   カードをタッチ
                 </Button>
                 
-                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 w-full max-w-md">
-                  <p className="text-center text-sm text-blue-800 dark:text-blue-200">
-                    💡 カードは端末の<strong>背面</strong>に当ててください
+                <div className="bg-secondary border border-border rounded-md p-3 w-full max-w-md">
+                  <p className="text-center text-sm text-muted-foreground">
+                    カードは端末の<strong>背面</strong>に当ててください
                   </p>
                 </div>
               </>
@@ -326,16 +337,16 @@ export default function KioskEntryPage() {
 
           {lastResult && (
             <div className="mt-6">
-              <Card className={lastResult.success ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800" : "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800"}>
+              <Card className="border border-border bg-secondary">
                 <CardContent className="pt-6">
                   <div className="flex items-start space-x-4">
                     {lastResult.success ? (
-                      <CheckCircle2 className="w-6 h-6 text-green-600 dark:text-green-400 flex-shrink-0 mt-1" />
+                      <CheckCircle2 className="w-6 h-6 text-primary flex-shrink-0 mt-1" />
                     ) : (
-                      <XCircle className="w-6 h-6 text-red-600 dark:text-red-400 flex-shrink-0 mt-1" />
+                      <XCircle className="w-6 h-6 text-destructive flex-shrink-0 mt-1" />
                     )}
                     <div className="flex-1 space-y-2">
-                      <p className={`font-semibold ${lastResult.success ? "text-green-800 dark:text-green-200" : "text-red-800 dark:text-red-200"}`}>
+                      <p className={`font-semibold ${lastResult.success ? "text-foreground" : "text-destructive"}`}>
                         {lastResult.message}
                       </p>
                       {lastResult.studentName && (
@@ -360,8 +371,8 @@ export default function KioskEntryPage() {
             </div>
           )}
         </CardContent>
-      </Card>
+        </Card>
+      </div>
     </div>
   )
 }
-
