@@ -1288,7 +1288,11 @@ export default function StudentsPage() {
         {/* Students Table */}
         <Card>
           <CardContent className="p-0">
-            {filteredStudents.length === 0 ? (
+            {isLoading ? (
+              <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
+                読み込み中…
+              </div>
+            ) : filteredStudents.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <UserPlus className="mb-4 h-12 w-12 text-muted-foreground" />
                 <h3 className="mb-2 text-lg font-semibold">ユーザーがいません</h3>
