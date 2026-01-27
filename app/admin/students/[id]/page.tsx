@@ -99,6 +99,8 @@ export default function StudentDetailPage({
   // 編集ダイアログの状態
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [editingStudent, setEditingStudent] = useState<Student | null>(null)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [isDeletingStudent, setIsDeletingStudent] = useState(false)
 
   useEffect(() => {
     async function getParams() {
@@ -778,6 +780,48 @@ export default function StudentDetailPage({
     }
   }
 
+  const handleCancelDelete = () => {
+    if (!isDeletingStudent) {
+      setIsDeleteDialogOpen(false)
+    }
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!studentId || !student) return
+
+    setIsDeletingStudent(true)
+    try {
+      const res = await fetch(`/api/students?id=${encodeURIComponent(studentId)}`, {
+        method: "DELETE",
+      })
+      const data = await res.json()
+
+      if (!res.ok || !data?.ok) {
+        const errorMessage = typeof data?.error === "string"
+          ? data.error
+          : data?.error?.message || String(data?.error) || "削除に失敗しました"
+        throw new Error(errorMessage)
+      }
+
+      toast({
+        title: "削除完了",
+        description: `${student.name}さんを削除しました`,
+      })
+
+      setIsDeleteDialogOpen(false)
+      router.push("/admin/students")
+    } catch (e: any) {
+      const errorMessage = e?.message || String(e) || "削除に失敗しました"
+      toast({
+        title: "エラー",
+        description: errorMessage,
+        variant: "destructive",
+      })
+    } finally {
+      setIsDeletingStudent(false)
+    }
+  }
+
   const generateQrCode = async (cardId: string) => {
     setIsGeneratingQr(true)
     try {
@@ -1229,6 +1273,23 @@ export default function StudentDetailPage({
           </CardContent>
         </Card>
 
+        {/* ユーザー削除 */}
+        <Card className="border-destructive/40 bg-destructive/5">
+          <CardHeader>
+            <CardTitle className="text-destructive">ユーザー削除</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              退職・卒業の場合はユーザーを削除せず、ステータス変更で対応してください。
+              <br />
+              一度削除すると履歴を含むすべてのデータが消えます。誤登録やテストユーザーの削除にのみ使用してください。
+            </p>
+            <Button variant="destructive" onClick={() => setIsDeleteDialogOpen(true)}>
+              ユーザーを削除
+            </Button>
+          </CardContent>
+        </Card>
+
         {/* ポイント追加ダイアログ */}
         <Dialog open={addPointsDialogOpen} onOpenChange={setAddPointsDialogOpen}>
           <DialogContent>
@@ -1530,6 +1591,42 @@ export default function StudentDetailPage({
               <Button onClick={downloadLinkQrCode} disabled={!linkQrCodeDataUrl}>
                 <Download className="h-4 w-4 mr-2" />
                 ダウンロード
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* ユーザー削除ダイアログ */}
+        <Dialog
+          open={isDeleteDialogOpen}
+          onOpenChange={(open) => {
+            if (!isDeletingStudent) {
+              setIsDeleteDialogOpen(open)
+            }
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>ユーザーを削除</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3 py-2">
+              <p className="text-sm text-muted-foreground">
+                「<span className="font-semibold text-foreground">{student.name}</span>」を削除します。
+              </p>
+              <p className="text-sm text-muted-foreground">
+                退職・卒業の場合はユーザーを削除せず、ステータス変更で対応してください。
+              </p>
+              <p className="text-sm text-muted-foreground">
+                一度削除すると履歴を含むすべてのデータが消えます。誤登録やテストユーザーの削除にのみ使用してください。
+              </p>
+              <p className="text-sm font-medium text-destructive">本当に削除しますか？</p>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={handleCancelDelete} disabled={isDeletingStudent}>
+                キャンセル
+              </Button>
+              <Button variant="destructive" onClick={handleConfirmDelete} disabled={isDeletingStudent}>
+                {isDeletingStudent ? "削除中..." : "削除"}
               </Button>
             </DialogFooter>
           </DialogContent>

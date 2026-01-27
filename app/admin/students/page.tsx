@@ -57,6 +57,11 @@ type StudentSortKey =
   | "lastEventTime"
   | "notificationCount"
 
+const DEFAULT_STATUS_FILTERS: StudentStatus[] = ["active"]
+const DEFAULT_ROLE_FILTERS: UserRole[] = ["student", "part_time", "full_time"]
+const DEFAULT_CARD_FILTERS: CardFilter[] = ["registered", "unregistered"]
+const DEFAULT_EVENT_FILTERS: EventType[] = ["entry", "exit", "no_log"]
+
 interface NotificationRecipient {
   id: string
   name: string
@@ -88,10 +93,10 @@ export default function StudentsPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
-  const [statusFilters, setStatusFilters] = useState<StudentStatus[]>([])
-  const [roleFilters, setRoleFilters] = useState<UserRole[]>([])
-  const [cardFilters, setCardFilters] = useState<CardFilter[]>([])
-  const [eventFilters, setEventFilters] = useState<EventType[]>([])
+  const [statusFilters, setStatusFilters] = useState<StudentStatus[]>([...DEFAULT_STATUS_FILTERS])
+  const [roleFilters, setRoleFilters] = useState<UserRole[]>([...DEFAULT_ROLE_FILTERS])
+  const [cardFilters, setCardFilters] = useState<CardFilter[]>([...DEFAULT_CARD_FILTERS])
+  const [eventFilters, setEventFilters] = useState<EventType[]>([...DEFAULT_EVENT_FILTERS])
   const [sortConfig, setSortConfig] = useState<{ key: StudentSortKey | null; direction: SortDirection }>({
     key: null,
     direction: "asc",
@@ -100,7 +105,6 @@ export default function StudentsPage() {
   const [pageSize, setPageSize] = useState(20)
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isCardRegisterDialogOpen, setIsCardRegisterDialogOpen] = useState(false)
   const [isCardDeleteDialogOpen, setIsCardDeleteDialogOpen] = useState(false)
   const [isBulkImportDialogOpen, setIsBulkImportDialogOpen] = useState(false)
@@ -109,7 +113,6 @@ export default function StudentsPage() {
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [uploadSuccess, setUploadSuccess] = useState(false)
   const [uploadResult, setUploadResult] = useState<{ success: number; failed: number; errors: string[] } | null>(null)
-  const [deletingStudent, setDeletingStudent] = useState<Student | null>(null)
   const [editingStudent, setEditingStudent] = useState<Student | null>(null)
   const [registeringCardStudent, setRegisteringCardStudent] = useState<Student | null>(null)
   const [deletingCardStudent, setDeletingCardStudent] = useState<Student | null>(null)
@@ -620,44 +623,6 @@ export default function StudentsPage() {
     setEditingStudent(null)
   }
 
-  const handleDeleteStudent = (student: Student) => {
-    setDeletingStudent(student)
-    setIsDeleteDialogOpen(true)
-  }
-
-  const handleConfirmDelete = async () => {
-    if (!deletingStudent) return
-
-    try {
-      const res = await fetch(`/api/students?id=${deletingStudent.id}`, {
-        method: "DELETE",
-      })
-      const data = await res.json()
-
-      if (!res.ok || !data?.ok) {
-        const errorMessage = typeof data?.error === "string" 
-          ? data.error 
-          : data?.error?.message || String(data?.error) || "Failed to delete student";
-        throw new Error(errorMessage);
-      }
-
-      // ダイアログ閉じる
-      setIsDeleteDialogOpen(false)
-      setDeletingStudent(null)
-
-      // 一覧更新
-      await loadStudents()
-    } catch (e: any) {
-      const errorMessage = e?.message || String(e) || "Failed to delete student";
-      alert(errorMessage);
-    }
-  }
-
-  const handleCancelDelete = () => {
-    setIsDeleteDialogOpen(false)
-    setDeletingStudent(null)
-  }
-
   const handleRegisterCard = (student: Student) => {
     setRegisteringCardStudent(student)
     setIsCardRegisterDialogOpen(true)
@@ -1114,27 +1079,40 @@ export default function StudentsPage() {
     })
   }
 
+  const isAllStatusSelected = statusFilters.length === 0 || statusFilters.length === statusOptions.length
+  const isAllRoleSelected = roleFilters.length === 0 || roleFilters.length === roleOptions.length
+  const isAllCardSelected = cardFilters.length === 0 || cardFilters.length === cardOptions.length
+  const isAllEventSelected = eventFilters.length === 0 || eventFilters.length === eventOptions.length
+
   const activeFilters = [
-    ...statusFilters.map((value) => ({
-      key: `status-${value}`,
-      label: `ステータス: ${getStatusLabel(value)}`,
-      onRemove: () => setStatusFilters((prev) => prev.filter((item) => item !== value)),
-    })),
-    ...roleFilters.map((value) => ({
-      key: `role-${value}`,
-      label: `属性: ${getRoleLabel(value)}`,
-      onRemove: () => setRoleFilters((prev) => prev.filter((item) => item !== value)),
-    })),
-    ...cardFilters.map((value) => ({
-      key: `card-${value}`,
-      label: `カード登録: ${value === "registered" ? "登録済み" : "未登録"}`,
-      onRemove: () => setCardFilters((prev) => prev.filter((item) => item !== value)),
-    })),
-    ...eventFilters.map((value) => ({
-      key: `event-${value}`,
-      label: `最終イベント: ${getEventLabel(value)}`,
-      onRemove: () => setEventFilters((prev) => prev.filter((item) => item !== value)),
-    })),
+    ...(!isAllStatusSelected
+      ? statusFilters.map((value) => ({
+          key: `status-${value}`,
+          label: `ステータス: ${getStatusLabel(value)}`,
+          onRemove: () => setStatusFilters((prev) => prev.filter((item) => item !== value)),
+        }))
+      : []),
+    ...(!isAllRoleSelected
+      ? roleFilters.map((value) => ({
+          key: `role-${value}`,
+          label: `属性: ${getRoleLabel(value)}`,
+          onRemove: () => setRoleFilters((prev) => prev.filter((item) => item !== value)),
+        }))
+      : []),
+    ...(!isAllCardSelected
+      ? cardFilters.map((value) => ({
+          key: `card-${value}`,
+          label: `カード登録: ${value === "registered" ? "登録済み" : "未登録"}`,
+          onRemove: () => setCardFilters((prev) => prev.filter((item) => item !== value)),
+        }))
+      : []),
+    ...(!isAllEventSelected
+      ? eventFilters.map((value) => ({
+          key: `event-${value}`,
+          label: `最終イベント: ${getEventLabel(value)}`,
+          onRemove: () => setEventFilters((prev) => prev.filter((item) => item !== value)),
+        }))
+      : []),
   ]
   const hasFilters = searchQuery.trim().length > 0 || activeFilters.length > 0
   const filterSummary =
@@ -1146,10 +1124,10 @@ export default function StudentsPage() {
 
   const handleResetFilters = () => {
     setSearchQuery("")
-    setStatusFilters([])
-    setRoleFilters([])
-    setCardFilters([])
-    setEventFilters([])
+    setStatusFilters([...DEFAULT_STATUS_FILTERS])
+    setRoleFilters([...DEFAULT_ROLE_FILTERS])
+    setCardFilters([...DEFAULT_CARD_FILTERS])
+    setEventFilters([...DEFAULT_EVENT_FILTERS])
   }
 
   return (
