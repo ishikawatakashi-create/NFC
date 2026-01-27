@@ -401,10 +401,10 @@ export default function ParentsPage() {
       const selectedStudentIds = newParent.studentIds.map(id => String(id))
 
       // 削除すべき紐付け（既存にあるが選択されていない）
-      const toDelete = existingStudentIds.filter(id => !selectedStudentIds.includes(id))
+      const toDelete = existingStudentIds.filter((id: string) => !selectedStudentIds.includes(id))
       
       // 追加すべき紐付け（選択されているが既存にない）
-      const toAdd = selectedStudentIds.filter(id => !existingStudentIds.includes(id))
+      const toAdd = selectedStudentIds.filter((id: string) => !existingStudentIds.includes(id))
 
       let addSuccessCount = 0
       let addFailedCount = 0
