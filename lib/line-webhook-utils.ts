@@ -53,14 +53,14 @@ export async function getLineProfile(
  * @param siteId サイトID
  * @param lineUserId LINE ユーザーID
  * @param timestamp イベントのタイムスタンプ
- * @param eventType イベント種別（follow or message）
+ * @param eventType イベント種別（follow, message, or postback）
  */
 export async function saveOrUpdateLineFollower(
   supabase: any,
   siteId: string,
   lineUserId: string,
   timestamp: number,
-  eventType: "follow" | "message"
+  eventType: "follow" | "message" | "postback"
 ): Promise<void> {
   try {
     // LINEプロフィール情報を取得
