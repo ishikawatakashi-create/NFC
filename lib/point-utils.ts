@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { POINT_CONSTANTS } from "@/lib/constants";
+import { getJstDayStart, getJstMonthStart } from "@/lib/timezone-utils";
 
 function getSupabase() {
   // サービスロールキーを使用してRLSをバイパス
@@ -89,9 +90,7 @@ export async function hasReceivedPointsToday(
 ): Promise<boolean> {
   const supabase = getSupabase();
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const todayStart = today.toISOString();
+  const todayStart = getJstDayStart().toISOString();
 
   // ポイントが実際に付与されたトランザクション（points > 0）をチェック
   const { data, error } = await supabase
@@ -130,13 +129,11 @@ export async function getMonthlyEntryCount(
 ): Promise<number> {
   const supabase = getSupabase();
 
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const monthStartISO = monthStart.toISOString();
+  const monthStartISO = getJstMonthStart().toISOString();
 
-  const { data, error } = await supabase
+  const { count, error } = await supabase
     .from("access_logs")
-    .select("id", { count: "exact" })
+    .select("id", { count: "exact", head: true })
     .eq("site_id", siteId)
     .eq("student_id", studentId)
     .eq("event_type", "entry")
@@ -149,7 +146,7 @@ export async function getMonthlyEntryCount(
     return 0;
   }
 
-  return data?.length || 0;
+  return count || 0;
 }
 
 /**
@@ -164,9 +161,7 @@ export async function hasReceivedBonusThisMonth(
 ): Promise<boolean> {
   const supabase = getSupabase();
 
-  const now = new Date();
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const monthStartISO = monthStart.toISOString();
+  const monthStartISO = getJstMonthStart().toISOString();
 
   const { data, error } = await supabase
     .from("point_transactions")
@@ -606,4 +601,3 @@ export async function consumePoints(
     return { success: false, error: e?.message || "ポイントの減算に失敗しました" };
   }
 }
-

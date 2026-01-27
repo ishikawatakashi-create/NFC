@@ -44,6 +44,8 @@ export default function ParentsPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
+  const [studentSearchQuery, setStudentSearchQuery] = useState("")
+  const [linkStudentSearchQuery, setLinkStudentSearchQuery] = useState("")
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
@@ -180,12 +182,31 @@ export default function ParentsPage() {
     loadStudents()
   }, [])
 
+  useEffect(() => {
+    if (!isAddDialogOpen) {
+      setStudentSearchQuery("")
+    }
+  }, [isAddDialogOpen])
+
+  useEffect(() => {
+    if (!isStudentLinkDialogOpen) {
+      setLinkStudentSearchQuery("")
+    }
+  }, [isStudentLinkDialogOpen])
+
   const filteredParents = parents.filter((parent) => {
     const matchesSearch = parent.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       parent.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       parent.phoneNumber?.includes(searchQuery)
     return matchesSearch
   })
+
+  const filteredStudentsForAdd = students.filter((student) =>
+    student.name.toLowerCase().includes(studentSearchQuery.toLowerCase())
+  )
+  const filteredStudentsForLink = students.filter((student) =>
+    student.name.toLowerCase().includes(linkStudentSearchQuery.toLowerCase())
+  )
 
   const getRelationshipLabel = (relationship?: string) => {
     switch (relationship) {
@@ -200,6 +221,29 @@ export default function ParentsPage() {
       default:
         return "-"
     }
+  }
+
+  const toggleStudentSelection = (studentId: string, checked: boolean) => {
+    setNewParent((prev) => {
+      if (checked) {
+        if (prev.studentIds.includes(studentId)) {
+          return prev
+        }
+        return { ...prev, studentIds: [...prev.studentIds, studentId] }
+      }
+      return { ...prev, studentIds: prev.studentIds.filter((id) => id !== studentId) }
+    })
+  }
+
+  const selectAllStudents = (studentIds: string[]) => {
+    setNewParent((prev) => ({
+      ...prev,
+      studentIds: Array.from(new Set([...prev.studentIds, ...studentIds])),
+    }))
+  }
+
+  const clearSelectedStudents = () => {
+    setNewParent((prev) => ({ ...prev, studentIds: [] }))
   }
 
   const handleAddParent = async () => {
@@ -545,6 +589,7 @@ export default function ParentsPage() {
       ...prev,
       studentIds: parent.students?.map(s => s.id) || [],
     }))
+    setLinkStudentSearchQuery("")
     setIsStudentLinkDialogOpen(true)
   }
 
@@ -751,12 +796,14 @@ export default function ParentsPage() {
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-2">
                           <Button
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
                             onClick={() => handleOpenStudentLinkDialog(parent)}
                             title="生徒を紐付け"
+                            className="gap-2"
                           >
                             <Users className="h-4 w-4" />
+                            <span className="hidden lg:inline">生徒を紐付け</span>
                           </Button>
                           <Button
                             variant="ghost"
@@ -876,42 +923,64 @@ export default function ParentsPage() {
               />
             </div>
             <div>
-              <Label>紐づける生徒</Label>
-              <p className="text-xs text-muted-foreground mb-2">
-                複数の生徒を選択できます（兄弟など複数の子どもが入塾している場合）
-              </p>
-              <div className="border rounded-md p-4 max-h-60 overflow-y-auto space-y-2">
-                {students.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">生徒が登録されていません</p>
-                ) : (
-                  students.map((student) => (
-                    <div key={student.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`student-${student.id}`}
-                        checked={newParent.studentIds.includes(student.id)}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            setNewParent({
-                              ...newParent,
-                              studentIds: [...newParent.studentIds, student.id],
-                            })
-                          } else {
-                            setNewParent({
-                              ...newParent,
-                              studentIds: newParent.studentIds.filter((id) => id !== student.id),
-                            })
-                          }
-                        }}
-                      />
-                      <Label
-                        htmlFor={`student-${student.id}`}
-                        className="text-sm font-normal cursor-pointer"
-                      >
-                        {student.name}
-                      </Label>
-                    </div>
-                  ))
-                )}
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <Label>紐づける生徒</Label>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    複数の生徒を選択できます（兄弟など複数の子どもが入塾している場合）
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <span>選択 {newParent.studentIds.length}名</span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => selectAllStudents(filteredStudentsForAdd.map((student) => student.id))}
+                    disabled={filteredStudentsForAdd.length === 0}
+                  >
+                    表示中を全選択
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={clearSelectedStudents}
+                    disabled={newParent.studentIds.length === 0}
+                  >
+                    選択をクリア
+                  </Button>
+                </div>
+              </div>
+              <div className="mt-3 space-y-2">
+                <Input
+                  placeholder="生徒名で絞り込み"
+                  value={studentSearchQuery}
+                  onChange={(e) => setStudentSearchQuery(e.target.value)}
+                />
+                <div className="border rounded-md p-4 max-h-60 overflow-y-auto space-y-2">
+                  {students.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">生徒が登録されていません</p>
+                  ) : filteredStudentsForAdd.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">該当する生徒がいません</p>
+                  ) : (
+                    filteredStudentsForAdd.map((student) => (
+                      <div key={student.id} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`student-${student.id}`}
+                          checked={newParent.studentIds.includes(student.id)}
+                          onCheckedChange={(checked) => toggleStudentSelection(student.id, checked === true)}
+                        />
+                        <Label
+                          htmlFor={`student-${student.id}`}
+                          className="text-sm font-normal cursor-pointer"
+                        >
+                          {student.name}
+                        </Label>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -1081,28 +1150,48 @@ export default function ParentsPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-xs text-muted-foreground">
+                選択 {newParent.studentIds.length}名
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => selectAllStudents(filteredStudentsForLink.map((student) => student.id))}
+                  disabled={filteredStudentsForLink.length === 0}
+                >
+                  表示中を全選択
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearSelectedStudents}
+                  disabled={newParent.studentIds.length === 0}
+                >
+                  選択をクリア
+                </Button>
+              </div>
+            </div>
+            <Input
+              placeholder="生徒名で絞り込み"
+              value={linkStudentSearchQuery}
+              onChange={(e) => setLinkStudentSearchQuery(e.target.value)}
+            />
             <div className="border rounded-md p-4 max-h-60 overflow-y-auto space-y-2">
               {students.length === 0 ? (
                 <p className="text-sm text-muted-foreground">生徒が登録されていません</p>
+              ) : filteredStudentsForLink.length === 0 ? (
+                <p className="text-sm text-muted-foreground">該当する生徒がいません</p>
               ) : (
-                students.map((student) => (
+                filteredStudentsForLink.map((student) => (
                   <div key={student.id} className="flex items-center space-x-2">
                     <Checkbox
                       id={`link-student-${student.id}`}
                       checked={newParent.studentIds.includes(student.id)}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          setNewParent({
-                            ...newParent,
-                            studentIds: [...newParent.studentIds, student.id],
-                          })
-                        } else {
-                          setNewParent({
-                            ...newParent,
-                            studentIds: newParent.studentIds.filter((id) => id !== student.id),
-                          })
-                        }
-                      }}
+                      onCheckedChange={(checked) => toggleStudentSelection(student.id, checked === true)}
                     />
                     <Label
                       htmlFor={`link-student-${student.id}`}
@@ -1128,4 +1217,3 @@ export default function ParentsPage() {
     </AdminLayout>
   )
 }
-

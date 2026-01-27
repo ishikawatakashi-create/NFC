@@ -10,6 +10,15 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -19,14 +28,17 @@ import {
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { Textarea } from "@/components/ui/textarea"
-import { Download, Edit } from "lucide-react"
+import { Download, Edit, ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react"
 
 type AccessLogType = "entry" | "exit" | "no_log" | "forced_exit"
 type NotificationStatus = "sent" | "not_required"
+type SortDirection = "asc" | "desc"
+type AccessLogSortKey = "timestamp" | "studentName" | "type" | "device" | "notification"
 
 interface AccessLog {
   id: string
   timestamp: string
+  timestampValue?: number
   studentName: string
   studentId?: string
   type: AccessLogType
@@ -59,6 +71,12 @@ export default function AccessLogsPage() {
   const [endDate, setEndDate] = useState("")
   const [logType, setLogType] = useState<string>("all")
   const [searchQuery, setSearchQuery] = useState("")
+  const [sortConfig, setSortConfig] = useState<{ key: AccessLogSortKey | null; direction: SortDirection }>({
+    key: null,
+    direction: "asc",
+  })
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
   const [logs, setLogs] = useState<AccessLog[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -101,16 +119,22 @@ export default function AccessLogsPage() {
         pointsAwarded?: boolean
       }> = data.logs ?? []
 
-      const mapped: AccessLog[] = apiLogs.map((log) => ({
-        id: log.id,
-        timestamp: formatDateTime(log.timestamp),
-        studentName: log.studentName,
-        studentId: log.studentId || undefined,
-        type: log.type as AccessLogType,
-        device: log.device || log.cardId || "不明",
-        notification: log.notification as NotificationStatus,
-        pointsAwarded: log.pointsAwarded || false,
-      }))
+      const mapped: AccessLog[] = apiLogs.map((log) => {
+        const timestampValueRaw = log.timestamp ? new Date(log.timestamp).getTime() : undefined
+        const timestampValue =
+          timestampValueRaw != null && !Number.isNaN(timestampValueRaw) ? timestampValueRaw : undefined
+        return {
+          id: log.id,
+          timestamp: formatDateTime(log.timestamp),
+          timestampValue,
+          studentName: log.studentName,
+          studentId: log.studentId || undefined,
+          type: log.type as AccessLogType,
+          device: log.device || log.cardId || "不明",
+          notification: log.notification as NotificationStatus,
+          pointsAwarded: log.pointsAwarded || false,
+        }
+      })
 
       setLogs(mapped)
     } catch (e: any) {
@@ -136,17 +160,145 @@ export default function AccessLogsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startDate, endDate, logType])
 
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [startDate, endDate, logType, searchQuery])
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [pageSize])
+
   // 検索クエリでフィルタ（APIで取得したデータをクライアント側でフィルタ）
   const filteredLogs = logs.filter((log) => {
     const matchesSearch = log.studentName.toLowerCase().includes(searchQuery.toLowerCase())
     return matchesSearch
   })
 
+  const logTypeOrder: Record<AccessLogType, number> = {
+    entry: 1,
+    exit: 2,
+    forced_exit: 3,
+    no_log: 4,
+  }
+
+  const notificationOrder: Record<NotificationStatus, number> = {
+    sent: 1,
+    not_required: 2,
+  }
+
+  const compareStrings = (a?: string, b?: string) => {
+    const aValue = a?.trim()
+    const bValue = b?.trim()
+    if (!aValue && !bValue) return 0
+    if (!aValue) return 1
+    if (!bValue) return -1
+    return aValue.localeCompare(bValue, "ja", { numeric: true, sensitivity: "base" })
+  }
+
+  const compareNumbers = (a?: number, b?: number) => {
+    if (a == null && b == null) return 0
+    if (a == null) return 1
+    if (b == null) return -1
+    return a - b
+  }
+
+  const handleSort = (key: AccessLogSortKey) => {
+    setSortConfig((prev) => {
+      if (prev.key === key) {
+        return { key, direction: prev.direction === "asc" ? "desc" : "asc" }
+      }
+      return { key, direction: "asc" }
+    })
+  }
+
+  const getAriaSort = (key: AccessLogSortKey) => {
+    if (sortConfig.key !== key) return "none"
+    return sortConfig.direction === "asc" ? "ascending" : "descending"
+  }
+
+  const renderSortIcon = (key: AccessLogSortKey) => {
+    if (sortConfig.key !== key) {
+      return <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground" />
+    }
+    return sortConfig.direction === "asc" ? (
+      <ChevronUp className="h-3.5 w-3.5 text-foreground" />
+    ) : (
+      <ChevronDown className="h-3.5 w-3.5 text-foreground" />
+    )
+  }
+
+  const getSortButtonClass = (align: "left" | "center" | "right", key: AccessLogSortKey) => {
+    const alignment = align === "center" ? "justify-center" : align === "right" ? "justify-end" : "justify-start"
+    const tone = sortConfig.key === key ? "text-foreground" : "text-foreground/70"
+    return `flex w-full items-center gap-1 text-xs font-semibold transition-colors ${alignment} ${tone} hover:text-foreground`
+  }
+
+  const sortedLogs = sortConfig.key
+    ? [...filteredLogs].sort((a, b) => {
+        const direction = sortConfig.direction === "asc" ? 1 : -1
+        switch (sortConfig.key) {
+          case "timestamp":
+            return compareNumbers(a.timestampValue, b.timestampValue) * direction
+          case "studentName":
+            return compareStrings(a.studentName, b.studentName) * direction
+          case "type":
+            return compareNumbers(logTypeOrder[a.type], logTypeOrder[b.type]) * direction
+          case "device":
+            return compareStrings(a.device, b.device) * direction
+          case "notification":
+            return compareNumbers(notificationOrder[a.notification], notificationOrder[b.notification]) * direction
+          default:
+            return 0
+        }
+      })
+    : filteredLogs
+
+  const totalLogs = sortedLogs.length
+  const totalPages = Math.max(1, Math.ceil(totalLogs / pageSize))
+  const currentPageSafe = Math.min(currentPage, totalPages)
+  const startIndex = totalLogs === 0 ? 0 : (currentPageSafe - 1) * pageSize + 1
+  const endIndex = Math.min(totalLogs, currentPageSafe * pageSize)
+  const paginatedLogs = sortedLogs.slice((currentPageSafe - 1) * pageSize, currentPageSafe * pageSize)
+
+  const getPaginationItems = (page: number, total: number) => {
+    if (total <= 7) {
+      return Array.from({ length: total }, (_, index) => index + 1)
+    }
+
+    const items: Array<number | "ellipsis"> = []
+    const left = Math.max(2, page - 1)
+    const right = Math.min(total - 1, page + 1)
+
+    items.push(1)
+    if (left > 2) {
+      items.push("ellipsis")
+    }
+    for (let value = left; value <= right; value += 1) {
+      items.push(value)
+    }
+    if (right < total - 1) {
+      items.push("ellipsis")
+    }
+    items.push(total)
+
+    return items
+  }
+
+  const paginationItems = getPaginationItems(currentPageSafe, totalPages)
+  const isPrevDisabled = currentPageSafe <= 1
+  const isNextDisabled = currentPageSafe >= totalPages
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [currentPage, totalPages])
+
   const handleExportCSV = () => {
     const headers = ["時刻", "生徒名", "種別", "端末", "通知"]
     const csvContent = [
       headers.join(","),
-      ...filteredLogs.map((log) =>
+      ...sortedLogs.map((log) =>
         [
           log.timestamp,
           log.studentName,
@@ -334,11 +486,56 @@ export default function AccessLogsPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>時刻</TableHead>
-                    <TableHead>生徒名</TableHead>
-                    <TableHead>種別</TableHead>
-                    <TableHead>端末</TableHead>
-                    <TableHead>通知</TableHead>
+                    <TableHead aria-sort={getAriaSort("timestamp")}>
+                      <button
+                        type="button"
+                        onClick={() => handleSort("timestamp")}
+                        className={getSortButtonClass("left", "timestamp")}
+                      >
+                        時刻
+                        {renderSortIcon("timestamp")}
+                      </button>
+                    </TableHead>
+                    <TableHead aria-sort={getAriaSort("studentName")}>
+                      <button
+                        type="button"
+                        onClick={() => handleSort("studentName")}
+                        className={getSortButtonClass("left", "studentName")}
+                      >
+                        生徒名
+                        {renderSortIcon("studentName")}
+                      </button>
+                    </TableHead>
+                    <TableHead aria-sort={getAriaSort("type")}>
+                      <button
+                        type="button"
+                        onClick={() => handleSort("type")}
+                        className={getSortButtonClass("left", "type")}
+                      >
+                        種別
+                        {renderSortIcon("type")}
+                      </button>
+                    </TableHead>
+                    <TableHead aria-sort={getAriaSort("device")}>
+                      <button
+                        type="button"
+                        onClick={() => handleSort("device")}
+                        className={getSortButtonClass("left", "device")}
+                      >
+                        端末
+                        {renderSortIcon("device")}
+                      </button>
+                    </TableHead>
+                    <TableHead aria-sort={getAriaSort("notification")}>
+                      <button
+                        type="button"
+                        onClick={() => handleSort("notification")}
+                        className={getSortButtonClass("left", "notification")}
+                      >
+                        通知
+                        {renderSortIcon("notification")}
+                      </button>
+                    </TableHead>
                     <TableHead className="text-right">操作</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -354,7 +551,7 @@ export default function AccessLogsPage() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredLogs.map((log) => (
+                    paginatedLogs.map((log) => (
                       <TableRow key={log.id}>
                         <TableCell className="font-mono text-sm">{log.timestamp}</TableCell>
                         <TableCell>
@@ -389,6 +586,83 @@ export default function AccessLogsPage() {
                 </TableBody>
               </Table>
             </div>
+            {totalLogs > 0 && (
+              <div className="flex flex-col gap-3 border-t px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-xs text-muted-foreground">
+                  {startIndex}-{endIndex} / {totalLogs}件
+                </div>
+                <div className="flex flex-col items-center gap-3 sm:flex-row">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span>表示件数</span>
+                    <Select value={String(pageSize)} onValueChange={(value) => setPageSize(Number(value))}>
+                      <SelectTrigger className="h-8 w-[90px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="20">20</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                        <SelectItem value="100">100</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Pagination className="w-auto">
+                    <PaginationContent>
+                      <PaginationItem>
+                        <PaginationPrevious
+                          href="#"
+                          onClick={(event) => {
+                            event.preventDefault()
+                            if (!isPrevDisabled) {
+                              setCurrentPage(currentPageSafe - 1)
+                            }
+                          }}
+                          aria-disabled={isPrevDisabled}
+                          tabIndex={isPrevDisabled ? -1 : undefined}
+                          className={isPrevDisabled ? "pointer-events-none opacity-50" : undefined}
+                        />
+                      </PaginationItem>
+                      {paginationItems.map((item, index) =>
+                        item === "ellipsis" ? (
+                          <PaginationItem key={`ellipsis-${index}`}>
+                            <PaginationEllipsis />
+                          </PaginationItem>
+                        ) : (
+                          <PaginationItem key={item}>
+                            <PaginationLink
+                              href="#"
+                              isActive={item === currentPageSafe}
+                              onClick={(event) => {
+                                event.preventDefault()
+                                if (item !== currentPageSafe) {
+                                  setCurrentPage(item)
+                                }
+                              }}
+                            >
+                              {item}
+                            </PaginationLink>
+                          </PaginationItem>
+                        ),
+                      )}
+                      <PaginationItem>
+                        <PaginationNext
+                          href="#"
+                          onClick={(event) => {
+                            event.preventDefault()
+                            if (!isNextDisabled) {
+                              setCurrentPage(currentPageSafe + 1)
+                            }
+                          }}
+                          aria-disabled={isNextDisabled}
+                          tabIndex={isNextDisabled ? -1 : undefined}
+                          className={isNextDisabled ? "pointer-events-none opacity-50" : undefined}
+                        />
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 

@@ -1,12 +1,9 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { requireAdminApi } from "@/lib/auth-helpers";
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  return getSupabaseAdmin();
 }
 
 // 入退室ログ更新（訂正用）
@@ -88,6 +85,5 @@ export async function PUT(
     return NextResponse.json({ ok: false, error: errorMessage }, { status: 500 });
   }
 }
-
 
 

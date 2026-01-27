@@ -89,7 +89,42 @@ export async function POST(req: Request) {
       );
     }
 
-    // 3. LINE User IDから親御さんを検索（既存のparent_line_accountsから）
+    // 3. トークンを原子的に使用済みにする（重複利用防止）
+    const claimTime = new Date();
+    const { data: claimedToken, error: claimError } = await supabase
+      .from("line_link_tokens")
+      .update({
+        is_used: true,
+        used_at: claimTime.toISOString(),
+      })
+      .eq("id", linkToken.id)
+      .eq("site_id", siteId)
+      .eq("is_used", false)
+      .gte("expires_at", claimTime.toISOString())
+      .select("id")
+      .single();
+
+    if (claimError && claimError.code !== "PGRST116") {
+      return NextResponse.json(
+        { ok: false, error: `トークンの更新に失敗しました: ${claimError.message}` },
+        { status: 500 }
+      );
+    }
+
+    if (!claimedToken) {
+      if (claimTime > expiresAt) {
+        return NextResponse.json(
+          { ok: false, error: "トークンの有効期限が切れています" },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json(
+        { ok: false, error: "このトークンは既に使用済みです" },
+        { status: 400 }
+      );
+    }
+
+    // 4. LINE User IDから親御さんを検索（既存のparent_line_accountsから）
     // 注意: parent_line_accountsテーブルにはsite_idカラムがないため、
     // parentsテーブル経由でsite_idでフィルタリングする
     console.log(`[LineLinkCard] Looking up LINE account for user: ${linkToken.line_user_id}`);
@@ -195,7 +230,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // 4. 親御さんと生徒を紐づけ（既存の紐付けをチェック）
+    // 5. 親御さんと生徒を紐づけ（既存の紐付けをチェック）
     // 注意: 1人の生徒に対して複数の親を紐づけることは可能です
     // このチェックは「同じ親が同じ生徒に重複して紐づけるのを防ぐ」ためのものです
     const { data: existingLink, error: checkLinkError } = await supabase
@@ -237,15 +272,6 @@ export async function POST(req: Request) {
         );
       }
     }
-
-    // 5. トークンを使用済みにする
-    await supabase
-      .from("line_link_tokens")
-      .update({
-        is_used: true,
-        used_at: new Date().toISOString(),
-      })
-      .eq("id", linkToken.id);
 
     return NextResponse.json({
       ok: true,

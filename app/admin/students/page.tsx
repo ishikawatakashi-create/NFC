@@ -10,15 +10,52 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Plus, Download, Search, Eye, UserPlus, Pencil, Trash2, CreditCard, Upload, FileDown } from "lucide-react"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
+import {
+  Plus,
+  Download,
+  Search,
+  Eye,
+  UserPlus,
+  Pencil,
+  Trash2,
+  CreditCard,
+  Upload,
+  FileDown,
+  ChevronUp,
+  ChevronDown,
+  ChevronsUpDown,
+} from "lucide-react"
 import { NFC_CONSTANTS } from "@/lib/constants"
 
 type StudentStatus = "active" | "suspended" | "withdrawn" | "graduated" | "disabled"
 type StudentClass = "kindergarten" | "beginner" | "challenger" | "creator" | "innovator"
 type EventType = "entry" | "exit" | "no_log"
 type UserRole = "student" | "part_time" | "full_time"
+type CardFilter = "registered" | "unregistered"
+type SortDirection = "asc" | "desc"
+type StudentSortKey =
+  | "name"
+  | "role"
+  | "grade"
+  | "status"
+  | "class"
+  | "cardRegistered"
+  | "cardId"
+  | "lastEvent"
+  | "lastEventTime"
+  | "notificationCount"
 
 interface NotificationRecipient {
   id: string
@@ -40,6 +77,7 @@ interface Student {
   card_token_id?: string | null
   lastEvent?: EventType
   lastEventTime?: string
+  lastEventAt?: number
   notificationCount: number
   notificationRecipients?: NotificationRecipient[]
 }
@@ -50,7 +88,16 @@ export default function StudentsPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
-  const [statusFilter, setStatusFilter] = useState<string>("all")
+  const [statusFilters, setStatusFilters] = useState<StudentStatus[]>([])
+  const [roleFilters, setRoleFilters] = useState<UserRole[]>([])
+  const [cardFilters, setCardFilters] = useState<CardFilter[]>([])
+  const [eventFilters, setEventFilters] = useState<EventType[]>([])
+  const [sortConfig, setSortConfig] = useState<{ key: StudentSortKey | null; direction: SortDirection }>({
+    key: null,
+    direction: "asc",
+  })
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
@@ -116,24 +163,30 @@ export default function StudentsPage() {
       }> = data.students ?? []
 
       // ★UIの Student 型に"寄せる"。未実装列は埋める。
-      const mapped: Student[] = apiStudents.map((s) => ({
-        id: String(s.id), // 確実に文字列化
-        name: s.name ?? "",
-        grade: s.grade ? String(s.grade) : undefined,
-        status: (s.status ?? "active") as StudentStatus,
-        class: s.class ? (s.class as StudentClass) : undefined, // DBから取得したclassを反映
-        role: s.role ? (s.role as UserRole) : "student", // デフォルトはstudent
-        has_custom_access_time: s.has_custom_access_time ?? false,
-        cardId: s.card_id || undefined,
-        card_registered: s.card_registered ?? false,
-        card_active: s.card_active ?? false,
-        card_token: s.card_token || undefined,
-        card_token_id: s.card_token_id || undefined,
-        lastEvent: s.last_event_type ? (s.last_event_type as EventType) : undefined,
-        lastEventTime: s.last_event_timestamp ? formatDateTime(s.last_event_timestamp) : undefined,
-        notificationCount: 0, // DB未実装なら 0
-        notificationRecipients: [], // DB未実装なら空配列
-      }))
+      const mapped: Student[] = apiStudents.map((s) => {
+        const lastEventAtRaw = s.last_event_timestamp ? new Date(s.last_event_timestamp).getTime() : undefined
+        const lastEventAt =
+          lastEventAtRaw != null && !Number.isNaN(lastEventAtRaw) ? lastEventAtRaw : undefined
+        return {
+          id: String(s.id), // 確実に文字列化
+          name: s.name ?? "",
+          grade: s.grade ? String(s.grade) : undefined,
+          status: (s.status ?? "active") as StudentStatus,
+          class: s.class ? (s.class as StudentClass) : undefined, // DBから取得したclassを反映
+          role: s.role ? (s.role as UserRole) : "student", // デフォルトはstudent
+          has_custom_access_time: s.has_custom_access_time ?? false,
+          cardId: s.card_id || undefined,
+          card_registered: s.card_registered ?? false,
+          card_active: s.card_active ?? false,
+          card_token: s.card_token || undefined,
+          card_token_id: s.card_token_id || undefined,
+          lastEvent: s.last_event_type ? (s.last_event_type as EventType) : undefined,
+          lastEventTime: s.last_event_timestamp ? formatDateTime(s.last_event_timestamp) : undefined,
+          lastEventAt,
+          notificationCount: 0, // DB未実装なら 0
+          notificationRecipients: [], // DB未実装なら空配列
+        }
+      })
 
       console.log("[Students Page] Students loaded:", mapped.length);
       setStudents(mapped)
@@ -151,11 +204,182 @@ export default function StudentsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, statusFilters, roleFilters, cardFilters, eventFilters])
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [pageSize])
+
   const filteredStudents = students.filter((student) => {
     const matchesSearch = student.name.toLowerCase().includes(searchQuery.toLowerCase())
-    const matchesStatus = statusFilter === "all" || student.status === statusFilter
-    return matchesSearch && matchesStatus
+    const matchesStatus = statusFilters.length === 0 || statusFilters.includes(student.status)
+    const roleValue = (student.role || "student") as UserRole
+    const matchesRole = roleFilters.length === 0 || roleFilters.includes(roleValue)
+    const cardValue: CardFilter = student.card_registered ? "registered" : "unregistered"
+    const matchesCard = cardFilters.length === 0 || cardFilters.includes(cardValue)
+    const eventValue = (student.lastEvent || "no_log") as EventType
+    const matchesEvent = eventFilters.length === 0 || eventFilters.includes(eventValue)
+    return matchesSearch && matchesStatus && matchesRole && matchesCard && matchesEvent
   })
+
+  const statusOrder: Record<StudentStatus, number> = {
+    active: 1,
+    suspended: 2,
+    withdrawn: 3,
+    graduated: 4,
+    disabled: 5,
+  }
+  const roleOrder: Record<UserRole, number> = {
+    student: 1,
+    part_time: 2,
+    full_time: 3,
+  }
+  const classOrder: Record<StudentClass, number> = {
+    kindergarten: 1,
+    beginner: 2,
+    challenger: 3,
+    creator: 4,
+    innovator: 5,
+  }
+  const eventOrder: Record<EventType, number> = {
+    entry: 1,
+    exit: 2,
+    no_log: 3,
+  }
+
+  const compareStrings = (a?: string, b?: string) => {
+    const aValue = a?.trim()
+    const bValue = b?.trim()
+    if (!aValue && !bValue) return 0
+    if (!aValue) return 1
+    if (!bValue) return -1
+    return aValue.localeCompare(bValue, "ja", { numeric: true, sensitivity: "base" })
+  }
+
+  const compareNumbers = (a?: number, b?: number) => {
+    if (a == null && b == null) return 0
+    if (a == null) return 1
+    if (b == null) return -1
+    return a - b
+  }
+
+  const compareBooleans = (a?: boolean, b?: boolean) => compareNumbers(a ? 1 : 0, b ? 1 : 0)
+
+  const handleSort = (key: StudentSortKey) => {
+    setSortConfig((prev) => {
+      if (prev.key === key) {
+        return { key, direction: prev.direction === "asc" ? "desc" : "asc" }
+      }
+      return { key, direction: "asc" }
+    })
+  }
+
+  const getAriaSort = (key: StudentSortKey) => {
+    if (sortConfig.key !== key) return "none"
+    return sortConfig.direction === "asc" ? "ascending" : "descending"
+  }
+
+  const renderSortIcon = (key: StudentSortKey) => {
+    if (sortConfig.key !== key) {
+      return <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground" />
+    }
+    return sortConfig.direction === "asc" ? (
+      <ChevronUp className="h-3.5 w-3.5 text-foreground" />
+    ) : (
+      <ChevronDown className="h-3.5 w-3.5 text-foreground" />
+    )
+  }
+
+  const getSortButtonClass = (align: "left" | "center" | "right", key: StudentSortKey) => {
+    const alignment = align === "center" ? "justify-center" : align === "right" ? "justify-end" : "justify-start"
+    const tone = sortConfig.key === key ? "text-foreground" : "text-foreground/70"
+    return `flex w-full items-center gap-1 text-xs font-semibold transition-colors ${alignment} ${tone} hover:text-foreground`
+  }
+
+  const sortedStudents = sortConfig.key
+    ? [...filteredStudents].sort((a, b) => {
+        const direction = sortConfig.direction === "asc" ? 1 : -1
+        switch (sortConfig.key) {
+          case "name":
+            return compareStrings(a.name, b.name) * direction
+          case "role": {
+            const aRole = (a.role || "student") as UserRole
+            const bRole = (b.role || "student") as UserRole
+            return compareNumbers(roleOrder[aRole], roleOrder[bRole]) * direction
+          }
+          case "grade":
+            return compareStrings(a.grade, b.grade) * direction
+          case "status":
+            return compareNumbers(statusOrder[a.status], statusOrder[b.status]) * direction
+          case "class":
+            return compareNumbers(
+              a.class ? classOrder[a.class] : undefined,
+              b.class ? classOrder[b.class] : undefined,
+            ) * direction
+          case "cardRegistered":
+            return compareBooleans(a.card_registered, b.card_registered) * direction
+          case "cardId":
+            return compareStrings(a.cardId, b.cardId) * direction
+          case "lastEvent":
+            return compareNumbers(
+              a.lastEvent ? eventOrder[a.lastEvent] : undefined,
+              b.lastEvent ? eventOrder[b.lastEvent] : undefined,
+            ) * direction
+          case "lastEventTime":
+            return compareNumbers(a.lastEventAt, b.lastEventAt) * direction
+          case "notificationCount":
+            return compareNumbers(a.notificationCount, b.notificationCount) * direction
+          default:
+            return 0
+        }
+      })
+    : filteredStudents
+
+  const totalStudents = sortedStudents.length
+  const totalPages = Math.max(1, Math.ceil(totalStudents / pageSize))
+  const currentPageSafe = Math.min(currentPage, totalPages)
+  const startIndex = totalStudents === 0 ? 0 : (currentPageSafe - 1) * pageSize + 1
+  const endIndex = Math.min(totalStudents, currentPageSafe * pageSize)
+  const paginatedStudents = sortedStudents.slice(
+    (currentPageSafe - 1) * pageSize,
+    currentPageSafe * pageSize,
+  )
+
+  const getPaginationItems = (page: number, total: number) => {
+    if (total <= 7) {
+      return Array.from({ length: total }, (_, index) => index + 1)
+    }
+
+    const items: Array<number | "ellipsis"> = []
+    const left = Math.max(2, page - 1)
+    const right = Math.min(total - 1, page + 1)
+
+    items.push(1)
+    if (left > 2) {
+      items.push("ellipsis")
+    }
+    for (let value = left; value <= right; value += 1) {
+      items.push(value)
+    }
+    if (right < total - 1) {
+      items.push("ellipsis")
+    }
+    items.push(total)
+
+    return items
+  }
+
+  const paginationItems = getPaginationItems(currentPageSafe, totalPages)
+  const isPrevDisabled = currentPageSafe <= 1
+  const isNextDisabled = currentPageSafe >= totalPages
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [currentPage, totalPages])
 
   const getStatusLabel = (status: StudentStatus) => {
     switch (status) {
@@ -677,7 +901,7 @@ export default function StudentsPage() {
     const headers = ["ユーザー名", "属性", "学年", "ステータス", "クラス", "カードID", "最終イベント", "最終イベント日時"]
     const csvContent = [
       headers.join(","),
-      ...filteredStudents.map((student) =>
+      ...sortedStudents.map((student) =>
         [
           `"${student.name}"`,
           `"${getRoleLabel(student.role)}"`,
@@ -855,6 +1079,79 @@ export default function StudentsPage() {
     }
   }
 
+  const statusOptions: Array<{ value: StudentStatus; label: string }> = [
+    { value: "active", label: "在籍" },
+    { value: "suspended", label: "休会" },
+    { value: "withdrawn", label: "退会" },
+    { value: "graduated", label: "卒業" },
+    { value: "disabled", label: "利用停止" },
+  ]
+  const roleOptions: Array<{ value: UserRole; label: string }> = [
+    { value: "student", label: "生徒" },
+    { value: "part_time", label: "アルバイト" },
+    { value: "full_time", label: "正社員" },
+  ]
+  const cardOptions: Array<{ value: CardFilter; label: string }> = [
+    { value: "registered", label: "登録済み" },
+    { value: "unregistered", label: "未登録" },
+  ]
+  const eventOptions: Array<{ value: EventType; label: string }> = [
+    { value: "entry", label: "入室" },
+    { value: "exit", label: "退室" },
+    { value: "no_log", label: "ログ無し" },
+  ]
+
+  const updateMultiSelect = <T,>(
+    value: T,
+    checked: boolean,
+    setValues: (updater: (prev: T[]) => T[]) => void,
+  ) => {
+    setValues((prev) => {
+      if (checked) {
+        return prev.includes(value) ? prev : [...prev, value]
+      }
+      return prev.filter((item) => item !== value)
+    })
+  }
+
+  const activeFilters = [
+    ...statusFilters.map((value) => ({
+      key: `status-${value}`,
+      label: `ステータス: ${getStatusLabel(value)}`,
+      onRemove: () => setStatusFilters((prev) => prev.filter((item) => item !== value)),
+    })),
+    ...roleFilters.map((value) => ({
+      key: `role-${value}`,
+      label: `属性: ${getRoleLabel(value)}`,
+      onRemove: () => setRoleFilters((prev) => prev.filter((item) => item !== value)),
+    })),
+    ...cardFilters.map((value) => ({
+      key: `card-${value}`,
+      label: `カード登録: ${value === "registered" ? "登録済み" : "未登録"}`,
+      onRemove: () => setCardFilters((prev) => prev.filter((item) => item !== value)),
+    })),
+    ...eventFilters.map((value) => ({
+      key: `event-${value}`,
+      label: `最終イベント: ${getEventLabel(value)}`,
+      onRemove: () => setEventFilters((prev) => prev.filter((item) => item !== value)),
+    })),
+  ]
+  const hasFilters = searchQuery.trim().length > 0 || activeFilters.length > 0
+  const filterSummary =
+    activeFilters.length > 0
+      ? `適用中フィルター: ${activeFilters.length}`
+      : searchQuery.trim().length > 0
+      ? "検索中"
+      : "フィルターなし"
+
+  const handleResetFilters = () => {
+    setSearchQuery("")
+    setStatusFilters([])
+    setRoleFilters([])
+    setCardFilters([])
+    setEventFilters([])
+  }
+
   return (
     <AdminLayout
       pageTitle="ユーザー一覧"
@@ -878,8 +1175,8 @@ export default function StudentsPage() {
       <div className="space-y-4">
         {/* Search and Filter Section */}
         <Card>
-          <CardContent className="pt-6">
-            <div className="flex flex-col gap-4 sm:flex-row">
+          <CardContent className="pt-6 space-y-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -889,20 +1186,120 @@ export default function StudentsPage() {
                   className="pl-9"
                 />
               </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-full sm:w-[180px]">
-                  <SelectValue placeholder="ステータス" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">すべて</SelectItem>
-                  <SelectItem value="active">在籍</SelectItem>
-                  <SelectItem value="suspended">休会</SelectItem>
-                  <SelectItem value="withdrawn">退会</SelectItem>
-                  <SelectItem value="graduated">卒業</SelectItem>
-                  <SelectItem value="disabled">利用停止</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="text-xs text-muted-foreground">
+                  {filterSummary}
+                </div>
+                <Button variant="outline" size="sm" onClick={handleResetFilters} disabled={!hasFilters}>
+                  リセット
+                </Button>
+              </div>
             </div>
+
+            <div className="grid gap-4 lg:grid-cols-4">
+              <div className="rounded-md border border-border bg-card/50 p-3">
+                <p className="text-xs font-semibold text-muted-foreground mb-2">ステータス</p>
+                <div className="space-y-2">
+                  {statusOptions.map((option) => {
+                    const id = `filter-status-${option.value}`
+                    return (
+                      <label key={option.value} htmlFor={id} className="flex items-center gap-2 text-sm">
+                        <Checkbox
+                          id={id}
+                          checked={statusFilters.includes(option.value)}
+                          onCheckedChange={(checked) =>
+                            updateMultiSelect(option.value, checked === true, setStatusFilters)
+                          }
+                        />
+                        <span>{option.label}</span>
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div className="rounded-md border border-border bg-card/50 p-3">
+                <p className="text-xs font-semibold text-muted-foreground mb-2">属性</p>
+                <div className="space-y-2">
+                  {roleOptions.map((option) => {
+                    const id = `filter-role-${option.value}`
+                    return (
+                      <label key={option.value} htmlFor={id} className="flex items-center gap-2 text-sm">
+                        <Checkbox
+                          id={id}
+                          checked={roleFilters.includes(option.value)}
+                          onCheckedChange={(checked) =>
+                            updateMultiSelect(option.value, checked === true, setRoleFilters)
+                          }
+                        />
+                        <span>{option.label}</span>
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div className="rounded-md border border-border bg-card/50 p-3">
+                <p className="text-xs font-semibold text-muted-foreground mb-2">カード登録</p>
+                <div className="space-y-2">
+                  {cardOptions.map((option) => {
+                    const id = `filter-card-${option.value}`
+                    return (
+                      <label key={option.value} htmlFor={id} className="flex items-center gap-2 text-sm">
+                        <Checkbox
+                          id={id}
+                          checked={cardFilters.includes(option.value)}
+                          onCheckedChange={(checked) =>
+                            updateMultiSelect(option.value, checked === true, setCardFilters)
+                          }
+                        />
+                        <span>{option.label}</span>
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div className="rounded-md border border-border bg-card/50 p-3">
+                <p className="text-xs font-semibold text-muted-foreground mb-2">最終イベント</p>
+                <div className="space-y-2">
+                  {eventOptions.map((option) => {
+                    const id = `filter-event-${option.value}`
+                    return (
+                      <label key={option.value} htmlFor={id} className="flex items-center gap-2 text-sm">
+                        <Checkbox
+                          id={id}
+                          checked={eventFilters.includes(option.value)}
+                          onCheckedChange={(checked) =>
+                            updateMultiSelect(option.value, checked === true, setEventFilters)
+                          }
+                        />
+                        <span>{option.label}</span>
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {activeFilters.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-muted-foreground">適用中:</span>
+                {activeFilters.map((filter) => (
+                  <Badge key={filter.key} variant="outline" className="gap-1">
+                    {filter.label}
+                    <button
+                      type="button"
+                      onClick={filter.onRemove}
+                      className="ml-1 text-muted-foreground hover:text-foreground"
+                      aria-label={`${filter.label} を解除`}
+                    >
+                      x
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -924,25 +1321,116 @@ export default function StudentsPage() {
                 </Button>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>ユーザー名</TableHead>
-                      <TableHead>属性</TableHead>
-                      <TableHead>学年</TableHead>
-                      <TableHead>ステータス</TableHead>
-                      <TableHead>クラス</TableHead>
-                      <TableHead>カード登録</TableHead>
-                      <TableHead>カードID</TableHead>
-                      <TableHead>最終イベント</TableHead>
-                      <TableHead>最終イベント日時</TableHead>
-                      <TableHead className="text-center">通知先人数</TableHead>
+              <>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                      <TableHead aria-sort={getAriaSort("name")}>
+                        <button
+                          type="button"
+                          onClick={() => handleSort("name")}
+                          className={getSortButtonClass("left", "name")}
+                        >
+                          ユーザー名
+                          {renderSortIcon("name")}
+                        </button>
+                      </TableHead>
+                      <TableHead aria-sort={getAriaSort("role")}>
+                        <button
+                          type="button"
+                          onClick={() => handleSort("role")}
+                          className={getSortButtonClass("left", "role")}
+                        >
+                          属性
+                          {renderSortIcon("role")}
+                        </button>
+                      </TableHead>
+                      <TableHead aria-sort={getAriaSort("grade")}>
+                        <button
+                          type="button"
+                          onClick={() => handleSort("grade")}
+                          className={getSortButtonClass("left", "grade")}
+                        >
+                          学年
+                          {renderSortIcon("grade")}
+                        </button>
+                      </TableHead>
+                      <TableHead aria-sort={getAriaSort("status")}>
+                        <button
+                          type="button"
+                          onClick={() => handleSort("status")}
+                          className={getSortButtonClass("left", "status")}
+                        >
+                          ステータス
+                          {renderSortIcon("status")}
+                        </button>
+                      </TableHead>
+                      <TableHead aria-sort={getAriaSort("class")}>
+                        <button
+                          type="button"
+                          onClick={() => handleSort("class")}
+                          className={getSortButtonClass("left", "class")}
+                        >
+                          クラス
+                          {renderSortIcon("class")}
+                        </button>
+                      </TableHead>
+                      <TableHead aria-sort={getAriaSort("cardRegistered")}>
+                        <button
+                          type="button"
+                          onClick={() => handleSort("cardRegistered")}
+                          className={getSortButtonClass("left", "cardRegistered")}
+                        >
+                          カード登録
+                          {renderSortIcon("cardRegistered")}
+                        </button>
+                      </TableHead>
+                      <TableHead aria-sort={getAriaSort("cardId")}>
+                        <button
+                          type="button"
+                          onClick={() => handleSort("cardId")}
+                          className={getSortButtonClass("left", "cardId")}
+                        >
+                          カードID
+                          {renderSortIcon("cardId")}
+                        </button>
+                      </TableHead>
+                      <TableHead aria-sort={getAriaSort("lastEvent")}>
+                        <button
+                          type="button"
+                          onClick={() => handleSort("lastEvent")}
+                          className={getSortButtonClass("left", "lastEvent")}
+                        >
+                          最終イベント
+                          {renderSortIcon("lastEvent")}
+                        </button>
+                      </TableHead>
+                      <TableHead aria-sort={getAriaSort("lastEventTime")}>
+                        <button
+                          type="button"
+                          onClick={() => handleSort("lastEventTime")}
+                          className={getSortButtonClass("left", "lastEventTime")}
+                        >
+                          最終イベント日時
+                          {renderSortIcon("lastEventTime")}
+                        </button>
+                      </TableHead>
+                      <TableHead className="text-center" aria-sort={getAriaSort("notificationCount")}>
+                        <button
+                          type="button"
+                          onClick={() => handleSort("notificationCount")}
+                          className={getSortButtonClass("center", "notificationCount")}
+                        >
+                          通知先人数
+                          {renderSortIcon("notificationCount")}
+                        </button>
+                      </TableHead>
                       <TableHead className="text-right">操作</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredStudents.map((student) => (
+                    {paginatedStudents.map((student) => (
                       <TableRow
                         key={student.id}
                         className="cursor-pointer"
@@ -1062,6 +1550,82 @@ export default function StudentsPage() {
                   </TableBody>
                 </Table>
               </div>
+              <div className="flex flex-col gap-3 border-t px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="text-xs text-muted-foreground">
+                  {startIndex}-{endIndex} / {totalStudents}件
+                </div>
+                <div className="flex flex-col items-center gap-3 sm:flex-row">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span>表示件数</span>
+                    <Select value={String(pageSize)} onValueChange={(value) => setPageSize(Number(value))}>
+                      <SelectTrigger className="h-8 w-[90px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="20">20</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                        <SelectItem value="100">100</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Pagination className="w-auto">
+                    <PaginationContent>
+                      <PaginationItem>
+                        <PaginationPrevious
+                          href="#"
+                          onClick={(event) => {
+                            event.preventDefault()
+                            if (!isPrevDisabled) {
+                              setCurrentPage(currentPageSafe - 1)
+                            }
+                          }}
+                          aria-disabled={isPrevDisabled}
+                          tabIndex={isPrevDisabled ? -1 : undefined}
+                          className={isPrevDisabled ? "pointer-events-none opacity-50" : undefined}
+                        />
+                      </PaginationItem>
+                      {paginationItems.map((item, index) =>
+                        item === "ellipsis" ? (
+                          <PaginationItem key={`ellipsis-${index}`}>
+                            <PaginationEllipsis />
+                          </PaginationItem>
+                        ) : (
+                          <PaginationItem key={item}>
+                            <PaginationLink
+                              href="#"
+                              isActive={item === currentPageSafe}
+                              onClick={(event) => {
+                                event.preventDefault()
+                                if (item !== currentPageSafe) {
+                                  setCurrentPage(item)
+                                }
+                              }}
+                            >
+                              {item}
+                            </PaginationLink>
+                          </PaginationItem>
+                        ),
+                      )}
+                      <PaginationItem>
+                        <PaginationNext
+                          href="#"
+                          onClick={(event) => {
+                            event.preventDefault()
+                            if (!isNextDisabled) {
+                              setCurrentPage(currentPageSafe + 1)
+                            }
+                          }}
+                          aria-disabled={isNextDisabled}
+                          tabIndex={isNextDisabled ? -1 : undefined}
+                          className={isNextDisabled ? "pointer-events-none opacity-50" : undefined}
+                        />
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
+                </div>
+              </div>
+            </>
             )}
           </CardContent>
         </Card>

@@ -7,9 +7,13 @@ export async function GET() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  const { data, error } = await supabase.from("students").select("id").limit(1);
+  const { error } = await supabase.from("students").select("id").limit(1);
 
-  return NextResponse.json({ ok: !error, data, error });
+  if (error) {
+    return NextResponse.json({ ok: false }, { status: 500 });
+  }
+
+  return NextResponse.json({ ok: true });
 }
 
 

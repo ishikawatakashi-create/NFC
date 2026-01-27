@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { buildJstDate, getJstDayStart } from "@/lib/timezone-utils";
 
 function getSupabase() {
   return createClient(
@@ -114,9 +115,8 @@ export function isPastEndTime(
   const hours = parseInt(timeParts[0], 10);
   const minutes = parseInt(timeParts[1], 10);
   
-  // 現在時刻の日付を使って、終了時刻のDateオブジェクトを作成
-  const endDate = new Date(currentTime);
-  endDate.setHours(hours, minutes, 0, 0);
+  // JSTの同日を基準に終了時刻を構築
+  const endDate = buildJstDate(currentTime, hours, minutes, 0);
   
   // 現在時刻が終了時刻を過ぎているかチェック（同じ時刻も「過ぎている」と判定）
   const isPast = currentTime >= endDate;
@@ -145,11 +145,16 @@ function getWindowForDate(
   const startParts = parseTimeParts(startTime);
   const endParts = parseTimeParts(endTime);
 
-  const start = new Date(baseDate);
-  start.setHours(startParts.hours, startParts.minutes, 0, 0);
+  const baseDayStart = getJstDayStart(baseDate);
+  const start = new Date(
+    baseDayStart.getTime() +
+      (startParts.hours * 60 + startParts.minutes) * 60 * 1000
+  );
 
-  const end = new Date(baseDate);
-  end.setHours(endParts.hours, endParts.minutes, 0, 0);
+  const end = new Date(
+    baseDayStart.getTime() +
+      (endParts.hours * 60 + endParts.minutes) * 60 * 1000
+  );
 
   if (end <= start) {
     end.setDate(end.getDate() + 1);
@@ -181,12 +186,14 @@ export function hasAccessWindowBetween(
     return isPastEndTime(endTime, currentTime);
   }
 
-  const startDay = new Date(lastEvent);
-  startDay.setHours(0, 0, 0, 0);
-  const endDay = new Date(currentTime);
-  endDay.setHours(0, 0, 0, 0);
+  const startDay = getJstDayStart(lastEvent);
+  const endDay = getJstDayStart(currentTime);
 
-  for (let day = new Date(startDay); day <= endDay; day.setDate(day.getDate() + 1)) {
+  for (
+    let day = new Date(startDay);
+    day <= endDay;
+    day = new Date(day.getTime() + 24 * 60 * 60 * 1000)
+  ) {
     const { start, end } = getWindowForDate(day, startTime, endTime);
     if (end > lastEvent && start <= currentTime) {
       return true;
