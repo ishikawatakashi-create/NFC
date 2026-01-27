@@ -6,6 +6,10 @@ import {
   saveOrUpdateLineFollower,
   reactivateParentLineAccount,
 } from "@/lib/line-webhook-utils";
+import {
+  generateLinkToken,
+  sendLinkMessage,
+} from "@/lib/line-link-utils";
 
 /**
  * LINE Webhookエンドポイント
@@ -143,6 +147,62 @@ export async function POST(req: Request) {
           }
         }
 
+        // Postbackイベント（リッチメニューのボタンクリックなど）
+        if (event.type === "postback") {
+          const lineUserId = event.source?.userId;
+          const postbackData = event.postback?.data;
+
+          if (!lineUserId) {
+            console.error("[LineWebhook] Postback event: lineUserId is missing");
+            continue;
+          }
+
+          console.log(
+            `[LineWebhook] Postback event received: lineUserId=${lineUserId}, data=${postbackData}`
+          );
+
+          try {
+            // parent_line_accountsのアカウントをアクティブ化
+            await reactivateParentLineAccount(supabase, lineUserId, event.timestamp);
+          } catch (error: any) {
+            console.error(`[LineWebhook] Error reactivating parent line account:`, error);
+          }
+
+          try {
+            // LINE友だち情報を保存または更新
+            await saveOrUpdateLineFollower(
+              supabase,
+              siteId,
+              lineUserId,
+              event.timestamp,
+              "postback"
+            );
+          } catch (error: any) {
+            console.error(`[LineWebhook] Error saving line follower:`, error);
+          }
+
+          // 紐づけボタンがクリックされた場合
+          if (postbackData === "link_card") {
+            console.log(`[LineWebhook] Link card postback detected`);
+            
+            // 共通関数を使用して紐づけ処理
+            const linkResult = await generateLinkToken(supabase, siteId, lineUserId);
+            
+            if (linkResult) {
+              const lineChannelAccessToken = env.LINE_CHANNEL_ACCESS_TOKEN;
+              if (lineChannelAccessToken) {
+                await sendLinkMessage(
+                  lineChannelAccessToken,
+                  event.replyToken,
+                  linkResult.linkUrl
+                );
+              } else {
+                console.error("[LineWebhook] LINE_CHANNEL_ACCESS_TOKEN is not set");
+              }
+            }
+          }
+        }
+
         // メッセージ受信イベント
         if (event.type === "message") {
           const lineUserId = event.source?.userId;
@@ -185,8 +245,8 @@ export async function POST(req: Request) {
               console.log(`[LineWebhook] Message type: ${messageType}`);
               console.log(`[LineWebhook] Reply token: ${event.replyToken}`);
 
-              // 紐づけ開始コマンド（「紐づけ」「登録」「設定」など）
-              const linkCommands = ["紐づけ", "紐付け", "登録", "設定", "カード登録", "通知登録"];
+              // 紐づけ開始コマンド（リッチメニューのフレーズに合わせる）
+              const linkCommands = ["カード紐づけを開始します", "カード紐付けを開始します", "カード紐づけ", "カード紐付け"];
               const normalizedMessage = messageText.trim();
               
               console.log(`[LineWebhook] Normalized message: "${normalizedMessage}"`);
@@ -198,117 +258,19 @@ export async function POST(req: Request) {
               if (isLinkCommand) {
                 console.log(`[LineWebhook] Link command detected: ${normalizedMessage}`);
                 
-                // 一時トークンを生成
-                const token = crypto.randomBytes(32).toString("hex");
-                const expiresAt = new Date();
-                expiresAt.setHours(expiresAt.getHours() + 1); // 1時間有効
+                // 共通関数を使用して紐づけ処理
+                const linkResult = await generateLinkToken(supabase, siteId, lineUserId);
                 
-                // トークンをデータベースに保存
-                const { error: tokenError } = await supabase
-                  .from("line_link_tokens")
-                  .insert({
-                    site_id: siteId,
-                    line_user_id: lineUserId,
-                    token: token,
-                    expires_at: expiresAt.toISOString(),
-                  });
-                
-                if (tokenError) {
-                  console.error(`[LineWebhook] Failed to create link token:`, tokenError);
-                  console.error(`[LineWebhook] Token error details:`, JSON.stringify(tokenError, null, 2));
-                } else {
-                  console.log(`[LineWebhook] Token created successfully: ${token.substring(0, 10)}...`);
-                  
-                  // URLを生成（本番環境のURLを環境変数から取得）
-                  // VERCEL_URLはプレビュー環境のURLになる可能性があるため、NEXT_PUBLIC_BASE_URLを優先
-                  // プレビュー環境のURL（-xxx-xxx.vercel.app）は認証が必要な場合があるため、本番URLを使用
-                  let baseUrl = env.NEXT_PUBLIC_BASE_URL;
-                  
-                  // NEXT_PUBLIC_BASE_URLが設定されていない場合、VERCEL_URLから本番URLを推測
-                  if (!baseUrl && env.VERCEL_URL) {
-                    // プレビュー環境のURL（例: xxx-xxx-xxx.vercel.app）を本番URLに変換
-                    // プロジェクト名から本番URLを推測（実際の本番URLに置き換える必要がある）
-                    const vercelUrl = env.VERCEL_URL;
-                    // プレビュー環境のURLの場合は警告を出す
-                    if (vercelUrl.includes('-') && vercelUrl.includes('.vercel.app')) {
-                      console.warn(`[LineWebhook] Using preview URL: ${vercelUrl}. Please set NEXT_PUBLIC_BASE_URL to production URL.`);
-                    }
-                    baseUrl = `https://${vercelUrl}`;
-                  }
-                  
-                  if (!baseUrl) {
-                    console.error("[LineWebhook] NEXT_PUBLIC_BASE_URL is not set. Cannot generate URLs.");
-                    // エラーを返さず、デフォルトURLを使用（開発環境用）
-                    baseUrl = "http://localhost:3001";
-                  }
-                  
-                  const linkUrl = `${baseUrl}/link-card?token=${token}`;
-                  
-                  // QRコード画像のURLを生成
-                  // LINE Messaging APIのImage Messageには、HTTPSで公開アクセス可能なURLが必要
-                  const qrCodeUrl = `${baseUrl}/api/line/qr-code?url=${encodeURIComponent(linkUrl)}`;
-                  
-                  console.log(`[LineWebhook] Generated link URL: ${linkUrl}`);
-                  console.log(`[LineWebhook] QR code URL: ${qrCodeUrl}`);
-                  console.log(`[LineWebhook] Base URL: ${baseUrl}`);
-                  
-                  // LINEメッセージを送信
+                if (linkResult) {
                   const lineChannelAccessToken = env.LINE_CHANNEL_ACCESS_TOKEN;
-                  if (!lineChannelAccessToken) {
-                    console.error("[LineWebhook] LINE_CHANNEL_ACCESS_TOKEN is not set");
+                  if (lineChannelAccessToken) {
+                    await sendLinkMessage(
+                      lineChannelAccessToken,
+                      event.replyToken,
+                      linkResult.linkUrl
+                    );
                   } else {
-                    console.log(`[LineWebhook] Sending reply message...`);
-                    console.log(`[LineWebhook] Reply token: ${event.replyToken}`);
-                    console.log(`[LineWebhook] Access token length: ${lineChannelAccessToken.length}`);
-                    
-                    try {
-                      // LINE Messaging APIのImage Messageには、HTTPSで公開アクセス可能なURLが必要
-                      // プレビュー環境のURLは認証が必要な場合があるため、本番URLを使用する必要がある
-                      // QRコード画像のURLが正しく生成されているか確認
-                      console.log(`[LineWebhook] QR code image URL: ${qrCodeUrl}`);
-                      console.log(`[LineWebhook] QR code URL is HTTPS: ${qrCodeUrl.startsWith('https://')}`);
-                      
-                      const replyBody = {
-                        replyToken: event.replyToken,
-                        messages: [
-                          {
-                            type: "text",
-                            text: `カード紐づけを開始します。\n\n以下のURLにアクセスして、紐づけを完了してください。\n\n${linkUrl}\n\n※このURLは1時間有効です。`,
-                          },
-                        ],
-                      };
-                      
-                      console.log(`[LineWebhook] Reply body:`, JSON.stringify(replyBody, null, 2));
-                      
-                      const response = await fetch("https://api.line.me/v2/bot/message/reply", {
-                        method: "POST",
-                        headers: {
-                          "Content-Type": "application/json",
-                          Authorization: `Bearer ${lineChannelAccessToken}`,
-                        },
-                        body: JSON.stringify(replyBody),
-                      });
-                      
-                      console.log(`[LineWebhook] Reply API response status: ${response.status}`);
-                      
-                      if (!response.ok) {
-                        const errorText = await response.text();
-                        console.error(`[LineWebhook] Failed to send reply message:`, response.status, errorText);
-                        try {
-                          const errorJson = JSON.parse(errorText);
-                          console.error(`[LineWebhook] Error details:`, JSON.stringify(errorJson, null, 2));
-                        } catch {
-                          console.error(`[LineWebhook] Error text (not JSON):`, errorText);
-                        }
-                      } else {
-                        const responseText = await response.text();
-                        console.log(`[LineWebhook] Successfully sent link URL to ${lineUserId}`);
-                        console.log(`[LineWebhook] Response:`, responseText);
-                      }
-                    } catch (fetchError: any) {
-                      console.error(`[LineWebhook] Error sending reply message:`, fetchError);
-                      console.error(`[LineWebhook] Error stack:`, fetchError.stack);
-                    }
+                    console.error("[LineWebhook] LINE_CHANNEL_ACCESS_TOKEN is not set");
                   }
                 }
               }

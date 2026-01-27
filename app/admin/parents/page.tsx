@@ -384,8 +384,8 @@ export default function ParentsPage() {
   }
 
   const handleLinkStudent = async () => {
-    if (!linkingParent || newParent.studentIds.length === 0) {
-      alert("紐付ける生徒を選択してください")
+    if (!linkingParent) {
+      alert("親御さんが選択されていません")
       return
     }
 
@@ -397,13 +397,38 @@ export default function ParentsPage() {
         ? existingData.students.map((s: any) => String(s.id))
         : []
 
-      // 新しく追加する生徒のみを追加
-      const newStudentIds = newParent.studentIds.filter(id => !existingStudentIds.includes(id))
+      // 選択された生徒ID（文字列として統一）
+      const selectedStudentIds = newParent.studentIds.map(id => String(id))
 
-      let successCount = 0
-      let failedCount = 0
+      // 削除すべき紐付け（既存にあるが選択されていない）
+      const toDelete = existingStudentIds.filter(id => !selectedStudentIds.includes(id))
+      
+      // 追加すべき紐付け（選択されているが既存にない）
+      const toAdd = selectedStudentIds.filter(id => !existingStudentIds.includes(id))
 
-      for (const studentId of newStudentIds) {
+      let addSuccessCount = 0
+      let addFailedCount = 0
+      let deleteSuccessCount = 0
+      let deleteFailedCount = 0
+
+      // 削除処理
+      for (const studentId of toDelete) {
+        const res = await fetch(`/api/parents/${linkingParent.id}/students/${studentId}`, {
+          method: "DELETE",
+        })
+
+        const data = await res.json()
+        if (!res.ok || !data?.ok) {
+          console.error(`Failed to unlink student ${studentId}:`, data)
+          deleteFailedCount++
+        } else {
+          console.log(`[Parents] Successfully unlinked student ${studentId} from parent ${linkingParent.id}`)
+          deleteSuccessCount++
+        }
+      }
+
+      // 追加処理
+      for (const studentId of toAdd) {
         const res = await fetch(`/api/parents/${linkingParent.id}/students`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -416,10 +441,10 @@ export default function ParentsPage() {
         const data = await res.json()
         if (!res.ok || !data?.ok) {
           console.error(`Failed to link student ${studentId}:`, data)
-          failedCount++
+          addFailedCount++
         } else {
           console.log(`[Parents] Successfully linked student ${studentId} to parent ${linkingParent.id}`)
-          successCount++
+          addSuccessCount++
         }
       }
 
@@ -428,11 +453,19 @@ export default function ParentsPage() {
       setNewParent(prev => ({ ...prev, studentIds: [] }))
       await loadParents()
       
-      if (failedCount > 0) {
-        alert(`生徒を紐付けました（成功: ${successCount}件、失敗: ${failedCount}件）`)
-      } else {
-        alert(`生徒を${successCount}件紐付けました`)
+      // 結果メッセージ
+      const messages: string[] = []
+      if (addSuccessCount > 0 || addFailedCount > 0) {
+        messages.push(`追加: 成功${addSuccessCount}件${addFailedCount > 0 ? `、失敗${addFailedCount}件` : ''}`)
       }
+      if (deleteSuccessCount > 0 || deleteFailedCount > 0) {
+        messages.push(`削除: 成功${deleteSuccessCount}件${deleteFailedCount > 0 ? `、失敗${deleteFailedCount}件` : ''}`)
+      }
+      if (messages.length === 0) {
+        messages.push("変更はありませんでした")
+      }
+      
+      alert(`生徒の紐付けを更新しました\n${messages.join('\n')}`)
     } catch (e: any) {
       const errorMessage = e?.message || String(e) || "Failed to link students"
       alert(`エラー: ${errorMessage}`)
@@ -844,6 +877,9 @@ export default function ParentsPage() {
             </div>
             <div>
               <Label>紐づける生徒</Label>
+              <p className="text-xs text-muted-foreground mb-2">
+                複数の生徒を選択できます（兄弟など複数の子どもが入塾している場合）
+              </p>
               <div className="border rounded-md p-4 max-h-60 overflow-y-auto space-y-2">
                 {students.length === 0 ? (
                   <p className="text-sm text-muted-foreground">生徒が登録されていません</p>
@@ -1041,7 +1077,7 @@ export default function ParentsPage() {
           <DialogHeader>
             <DialogTitle>生徒を紐付け</DialogTitle>
             <DialogDescription>
-              {linkingParent?.name} に紐付ける生徒を選択してください。
+              {linkingParent?.name} に紐付ける生徒を選択してください。複数の生徒を選択できます（兄弟など複数の子どもが入塾している場合）。既に紐付けられている生徒のチェックを外すと、紐付けが解除されます。
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -1083,8 +1119,8 @@ export default function ParentsPage() {
             <Button variant="outline" onClick={() => setIsStudentLinkDialogOpen(false)}>
               キャンセル
             </Button>
-            <Button onClick={handleLinkStudent} disabled={newParent.studentIds.length === 0}>
-              紐付け
+            <Button onClick={handleLinkStudent}>
+              更新
             </Button>
           </DialogFooter>
         </DialogContent>

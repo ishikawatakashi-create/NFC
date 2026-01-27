@@ -1,6 +1,7 @@
 -- studentsテーブルのstatusに'disabled'（利用停止）を追加
 -- 社員・アルバイトなどの利用停止状態を表現するため
 
+-- enum型に'disabled'値を追加
 DO $$
 BEGIN
     IF NOT EXISTS (
@@ -16,5 +17,5 @@ EXCEPTION
         NULL;
 END $$;
 
--- コメント更新
+-- カラムコメントを更新
 COMMENT ON COLUMN students.status IS 'ステータス（active: 在籍, suspended: 休会, withdrawn: 退会, graduated: 卒業, disabled: 利用停止）';
