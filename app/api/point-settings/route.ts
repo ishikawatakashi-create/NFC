@@ -28,7 +28,7 @@ export async function GET(req: Request) {
 
     const { data, error } = await supabase
       .from("point_settings")
-      .select("entry_points, daily_limit, entry_notification_template, exit_notification_template")
+      .select("entry_points, daily_limit, bonus_enabled, entry_notification_template, exit_notification_template")
       .eq("site_id", siteId)
       .single();
 
@@ -41,6 +41,7 @@ export async function GET(req: Request) {
     const settings = data || {
       entry_points: 1,
       daily_limit: true,
+      bonus_enabled: true,
       entry_notification_template: "[生徒名]さんが入室しました。\n時刻: [現在時刻]",
       exit_notification_template: "[生徒名]さんが退室しました。\n時刻: [現在時刻]",
     };
@@ -56,9 +57,10 @@ export async function GET(req: Request) {
 export async function PUT(req: Request) {
   try {
     const body = await req.json();
-    const { entryPoints, dailyLimit, entryTemplate, exitTemplate } = body as {
+    const { entryPoints, dailyLimit, bonusEnabled, entryTemplate, exitTemplate } = body as {
       entryPoints: number;
       dailyLimit: boolean;
+      bonusEnabled?: boolean;
       entryTemplate?: string;
       exitTemplate?: string;
     };
@@ -83,6 +85,12 @@ export async function PUT(req: Request) {
         { status: 400 }
       );
     }
+    if (bonusEnabled !== undefined && typeof bonusEnabled !== "boolean") {
+      return NextResponse.json(
+        { ok: false, error: "bonusEnabled はbooleanである必要があります" },
+        { status: 400 }
+      );
+    }
 
     const supabase = getSupabase();
 
@@ -93,6 +101,10 @@ export async function PUT(req: Request) {
       daily_limit: dailyLimit,
       updated_at: new Date().toISOString(),
     };
+
+    if (bonusEnabled !== undefined) {
+      updateData.bonus_enabled = bonusEnabled;
+    }
 
     // 通知テンプレートが指定されている場合は追加
     if (entryTemplate !== undefined) {
@@ -123,6 +135,5 @@ export async function PUT(req: Request) {
     return NextResponse.json({ ok: false, error: errorMessage }, { status: 500 });
   }
 }
-
 
 

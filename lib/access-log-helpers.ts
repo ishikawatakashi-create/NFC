@@ -5,6 +5,7 @@
 import {
   getStudentBonusThreshold,
   getStudentBonusPoints,
+  getClassBonusEnabled,
   hasReceivedPointsToday,
   getMonthlyEntryCount,
   hasReceivedBonusThisMonth,
@@ -76,45 +77,50 @@ export async function awardPointsOnEntry(
     }
 
     // 2. ボーナスポイント（同月内でX回入室で3点、1ヶ月に1回のみ）
-    const monthlyEntryCount = await getMonthlyEntryCount(siteId, studentId);
-    const bonusThreshold = await getStudentBonusThreshold(
-      siteId,
-      studentData.role as "student" | "part_time" | "full_time",
-      studentData.class || null,
-      studentData.has_custom_bonus_threshold || false,
-      studentData.bonus_threshold || null
-    );
+    const classBonusEnabled = await getClassBonusEnabled(siteId, studentData.class || null);
+    if (classBonusEnabled) {
+      const monthlyEntryCount = await getMonthlyEntryCount(siteId, studentId);
+      const bonusThreshold = await getStudentBonusThreshold(
+        siteId,
+        studentData.role as "student" | "part_time" | "full_time",
+        studentData.class || null,
+        studentData.has_custom_bonus_threshold || false,
+        studentData.bonus_threshold || null
+      );
 
-    console.log(`[Points] Student ${studentId}: monthlyEntryCount=${monthlyEntryCount}, bonusThreshold=${bonusThreshold}`);
+      console.log(`[Points] Student ${studentId}: monthlyEntryCount=${monthlyEntryCount}, bonusThreshold=${bonusThreshold}`);
 
-    if (monthlyEntryCount >= bonusThreshold) {
-      const hasReceivedBonus = await hasReceivedBonusThisMonth(siteId, studentId);
-      console.log(`[Points] Student ${studentId}: hasReceivedBonus=${hasReceivedBonus}`);
-      
-      if (!hasReceivedBonus) {
-        // クラス別のボーナスポイント数を取得
-        const bonusPoints = await getStudentBonusPoints(siteId, studentData.class);
-        console.log(`[Points] Student ${studentId}: bonusPoints=${bonusPoints} (class: ${studentData.class})`);
+      if (monthlyEntryCount >= bonusThreshold) {
+        const hasReceivedBonus = await hasReceivedBonusThisMonth(siteId, studentId);
+        console.log(`[Points] Student ${studentId}: hasReceivedBonus=${hasReceivedBonus}`);
         
-        const bonusPointsAdded = await addPoints(
-          siteId,
-          studentId,
-          bonusPoints,
-          "bonus",
-          `同月内${bonusThreshold}回入室達成によるボーナス`,
-          logDataId
-        );
-        console.log(`[Points] Student ${studentId}: bonusPointsAdded=${bonusPointsAdded}`);
-        if (bonusPointsAdded) {
-          pointsAwarded.bonus = bonusPoints;
+        if (!hasReceivedBonus) {
+          // クラス別のボーナスポイント数を取得
+          const bonusPoints = await getStudentBonusPoints(siteId, studentData.class);
+          console.log(`[Points] Student ${studentId}: bonusPoints=${bonusPoints} (class: ${studentData.class})`);
+          
+          const bonusPointsAdded = await addPoints(
+            siteId,
+            studentId,
+            bonusPoints,
+            "bonus",
+            `同月内${bonusThreshold}回入室達成によるボーナス`,
+            logDataId
+          );
+          console.log(`[Points] Student ${studentId}: bonusPointsAdded=${bonusPointsAdded}`);
+          if (bonusPointsAdded) {
+            pointsAwarded.bonus = bonusPoints;
+          } else {
+            console.error(`[Points] Failed to add bonus points for student ${studentId}`);
+          }
         } else {
-          console.error(`[Points] Failed to add bonus points for student ${studentId}`);
+          console.log(`[Points] Student ${studentId}: Already received bonus this month, skipping bonus points`);
         }
       } else {
-        console.log(`[Points] Student ${studentId}: Already received bonus this month, skipping bonus points`);
+        console.log(`[Points] Student ${studentId}: Entry count (${monthlyEntryCount}) < threshold (${bonusThreshold}), no bonus`);
       }
     } else {
-      console.log(`[Points] Student ${studentId}: Entry count (${monthlyEntryCount}) < threshold (${bonusThreshold}), no bonus`);
+      console.log(`[Points] Bonus points disabled for class, skipping bonus for student ${studentId}`);
     }
 
     // ポイントが付与された場合、ログのpoints_awardedをtrueに更新

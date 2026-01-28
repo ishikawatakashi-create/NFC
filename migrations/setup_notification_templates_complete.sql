@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS point_settings (
   site_id TEXT NOT NULL,
   entry_points INTEGER NOT NULL DEFAULT 1 CHECK (entry_points >= 0),
   daily_limit BOOLEAN NOT NULL DEFAULT true,
+  bonus_enabled BOOLEAN NOT NULL DEFAULT true,
   entry_notification_template TEXT NULL,
   exit_notification_template TEXT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -30,6 +31,7 @@ CREATE INDEX IF NOT EXISTS idx_point_settings_site_id ON point_settings(site_id)
 COMMENT ON TABLE point_settings IS 'ポイント設定テーブル';
 COMMENT ON COLUMN point_settings.entry_points IS '入室1回あたりに付与するポイント数';
 COMMENT ON COLUMN point_settings.daily_limit IS '1日1回制限（trueの場合、同じ日に複数回入室してもポイントは1回のみ付与）';
+COMMENT ON COLUMN point_settings.bonus_enabled IS 'ボーナスポイント付与を有効にするか';
 COMMENT ON COLUMN point_settings.entry_notification_template IS '入室通知のメッセージテンプレート（[生徒名]、[現在時刻]のタグが利用可能）';
 COMMENT ON COLUMN point_settings.exit_notification_template IS '退室通知のメッセージテンプレート（[生徒名]、[現在時刻]のタグが利用可能）';
 
@@ -43,6 +45,9 @@ ADD COLUMN IF NOT EXISTS entry_notification_template TEXT NULL;
 
 ALTER TABLE point_settings 
 ADD COLUMN IF NOT EXISTS exit_notification_template TEXT NULL;
+
+ALTER TABLE point_settings 
+ADD COLUMN IF NOT EXISTS bonus_enabled BOOLEAN NOT NULL DEFAULT true;
 
 -- ============================================
 -- 3. デフォルト値の設定

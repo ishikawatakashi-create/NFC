@@ -6,7 +6,6 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
-import { Switch } from "@/components/ui/switch"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
 import { AlertTriangle, Save, Clock } from "lucide-react"
@@ -28,6 +27,8 @@ export default function SettingsPage() {
   const [exitTemplate, setExitTemplate] = useState("[生徒名]さんが退室しました。\n時刻: [現在時刻]")
   const [loading, setLoading] = useState(false)
   const [autoExitLoading, setAutoExitLoading] = useState(false)
+  const [entryPoints, setEntryPoints] = useState(1)
+  const [dailyLimit, setDailyLimit] = useState(true)
 
   // 初期値を読み込む
   useEffect(() => {
@@ -37,6 +38,8 @@ export default function SettingsPage() {
         const data = await res.json()
 
         if (data.ok && data.settings) {
+          setEntryPoints(data.settings.entry_points ?? 1)
+          setDailyLimit(data.settings.daily_limit ?? true)
           if (data.settings.entry_notification_template) {
             setEntryTemplate(data.settings.entry_notification_template)
           }
@@ -59,8 +62,8 @@ export default function SettingsPage() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          entryPoints: 1, // デフォルト値（既存の設定を維持）
-          dailyLimit: true, // デフォルト値（既存の設定を維持）
+          entryPoints,
+          dailyLimit,
           entryTemplate,
           exitTemplate,
         }),

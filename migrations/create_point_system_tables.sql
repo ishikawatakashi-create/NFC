@@ -78,6 +78,7 @@ CREATE TABLE IF NOT EXISTS class_based_bonus_thresholds (
   site_id TEXT NOT NULL,
   class TEXT NOT NULL CHECK (class IN ('kindergarten', 'beginner', 'challenger', 'creator', 'innovator')),
   bonus_threshold INTEGER NOT NULL CHECK (bonus_threshold > 0),
+  bonus_enabled BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE(site_id, class)
@@ -91,6 +92,7 @@ CREATE INDEX IF NOT EXISTS idx_class_based_bonus_thresholds_class ON class_based
 COMMENT ON TABLE class_based_bonus_thresholds IS 'クラスごとのボーナス閾値設定テーブル';
 COMMENT ON COLUMN class_based_bonus_thresholds.class IS 'クラス（kindergarten, beginner, challenger, creator, innovator）';
 COMMENT ON COLUMN class_based_bonus_thresholds.bonus_threshold IS 'ボーナスポイントが付与される入室回数（同月内）';
+COMMENT ON COLUMN class_based_bonus_thresholds.bonus_enabled IS 'ボーナスポイント付与を有効にするか';
 
 
 

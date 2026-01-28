@@ -36,6 +36,7 @@ import {
   ChevronUp,
   ChevronDown,
   ChevronsUpDown,
+  Loader2,
 } from "lucide-react"
 import { NFC_CONSTANTS } from "@/lib/constants"
 
@@ -113,6 +114,9 @@ export default function StudentsPage() {
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [uploadSuccess, setUploadSuccess] = useState(false)
   const [uploadResult, setUploadResult] = useState<{ success: number; failed: number; errors: string[] } | null>(null)
+  const [isExporting, setIsExporting] = useState(false)
+  const [isTemplateDownloading, setIsTemplateDownloading] = useState(false)
+  const [isResetting, setIsResetting] = useState(false)
   const [editingStudent, setEditingStudent] = useState<Student | null>(null)
   const [registeringCardStudent, setRegisteringCardStudent] = useState<Student | null>(null)
   const [deletingCardStudent, setDeletingCardStudent] = useState<Student | null>(null)
@@ -862,7 +866,11 @@ export default function StudentsPage() {
     setDeletingCardStudent(null)
   }
 
-  const handleExportCSV = () => {
+  const handleExportCSV = async () => {
+    if (isExporting) return
+    setIsExporting(true)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    try {
     const headers = ["ユーザー名", "属性", "学年", "ステータス", "クラス", "カードID", "最終イベント", "最終イベント日時"]
     const csvContent = [
       headers.join(","),
@@ -881,13 +889,22 @@ export default function StudentsPage() {
     ].join("\n")
 
     const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
-    link.href = URL.createObjectURL(blob)
+    link.href = url
     link.download = `students_${new Date().toISOString().split("T")[0]}.csv`
     link.click()
+    URL.revokeObjectURL(url)
+    } finally {
+      setIsExporting(false)
+    }
   }
 
-  const handleDownloadTemplate = () => {
+  const handleDownloadTemplate = async () => {
+    if (isTemplateDownloading) return
+    setIsTemplateDownloading(true)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    try {
     const headers = ["name", "role", "status", "grade", "class", "card_id"]
     const exampleRows = [
       ["山田太郎", "student", "active", "小学3年", "beginner", ""],
@@ -900,10 +917,15 @@ export default function StudentsPage() {
     ].join("\n")
 
     const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
-    link.href = URL.createObjectURL(blob)
+    link.href = url
     link.download = `students_template_${new Date().toISOString().split("T")[0]}.csv`
     link.click()
+    URL.revokeObjectURL(url)
+    } finally {
+      setIsTemplateDownloading(false)
+    }
   }
 
   const handleBulkImport = async () => {
@@ -1123,11 +1145,14 @@ export default function StudentsPage() {
       : "フィルターなし"
 
   const handleResetFilters = () => {
+    if (isResetting) return
+    setIsResetting(true)
     setSearchQuery("")
-    setStatusFilters([...DEFAULT_STATUS_FILTERS])
-    setRoleFilters([...DEFAULT_ROLE_FILTERS])
-    setCardFilters([...DEFAULT_CARD_FILTERS])
-    setEventFilters([...DEFAULT_EVENT_FILTERS])
+    setStatusFilters([])
+    setRoleFilters([])
+    setCardFilters([])
+    setEventFilters([])
+    setTimeout(() => setIsResetting(false), 300)
   }
 
   return (
@@ -1135,9 +1160,15 @@ export default function StudentsPage() {
       pageTitle="ユーザー一覧"
       actions={
         <>
-          <Button variant="secondary" size="sm" className="gap-2" onClick={handleExportCSV}>
-            <Download className="h-4 w-4" />
-            <span className="hidden sm:inline">CSV出力</span>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="gap-2"
+            onClick={handleExportCSV}
+            disabled={isExporting}
+          >
+            {isExporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            <span className="hidden sm:inline">{isExporting ? "出力中..." : "CSV出力"}</span>
           </Button>
           <Button variant="secondary" size="sm" className="gap-2" onClick={() => setIsBulkImportDialogOpen(true)}>
             <Upload className="h-4 w-4" />
@@ -1168,8 +1199,15 @@ export default function StudentsPage() {
                 <div className="text-xs text-muted-foreground">
                   {filterSummary}
                 </div>
-                <Button variant="outline" size="sm" onClick={handleResetFilters} disabled={!hasFilters}>
-                  リセット
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  onClick={handleResetFilters}
+                  disabled={!hasFilters || isResetting}
+                >
+                  {isResetting && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                  {isResetting ? "リセット中..." : "リセット"}
                 </Button>
               </div>
             </div>
@@ -2025,9 +2063,14 @@ export default function StudentsPage() {
                 size="sm"
                 className="gap-2 w-full"
                 onClick={handleDownloadTemplate}
+                disabled={isTemplateDownloading}
               >
-                <FileDown className="h-4 w-4" />
-                テンプレートCSVをダウンロード
+                {isTemplateDownloading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <FileDown className="h-4 w-4" />
+                )}
+                {isTemplateDownloading ? "ダウンロード中..." : "テンプレートCSVをダウンロード"}
               </Button>
             </div>
             <div className="space-y-2">

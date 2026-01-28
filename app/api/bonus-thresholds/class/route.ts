@@ -27,7 +27,7 @@ export async function GET(req: Request) {
 
     const { data, error } = await supabase
       .from("class_based_bonus_thresholds")
-      .select("class, bonus_threshold, bonus_points")
+      .select("class, bonus_threshold, bonus_points, bonus_enabled")
       .eq("site_id", siteId);
 
     if (error) {
@@ -37,13 +37,20 @@ export async function GET(req: Request) {
 
     const classThresholds: Record<string, number> = {};
     const classBonusPoints: Record<string, number> = {};
+    const classBonusEnabled: Record<string, boolean> = {};
 
     (data || []).forEach((item: any) => {
       classThresholds[item.class] = item.bonus_threshold;
       classBonusPoints[item.class] = item.bonus_points || 3; // デフォルト値
+      classBonusEnabled[item.class] = item.bonus_enabled ?? true;
     });
 
-    return NextResponse.json({ ok: true, thresholds: classThresholds, bonusPoints: classBonusPoints });
+    return NextResponse.json({
+      ok: true,
+      thresholds: classThresholds,
+      bonusPoints: classBonusPoints,
+      bonusEnabled: classBonusEnabled,
+    });
   } catch (e: any) {
     const errorMessage = e?.message || String(e) || "Unknown error";
     return NextResponse.json({ ok: false, error: errorMessage }, { status: 500 });
@@ -54,10 +61,11 @@ export async function GET(req: Request) {
 export async function PUT(req: Request) {
   try {
     const body = await req.json();
-    const { class: studentClass, bonusThreshold, bonusPoints } = body as {
+    const { class: studentClass, bonusThreshold, bonusPoints, bonusEnabled } = body as {
       class: "kindergarten" | "beginner" | "challenger" | "creator" | "innovator";
       bonusThreshold: number;
       bonusPoints?: number;
+      bonusEnabled?: boolean;
     };
 
     const siteId = process.env.SITE_ID;
@@ -91,6 +99,12 @@ export async function PUT(req: Request) {
         { status: 400 }
       );
     }
+    if (bonusEnabled !== undefined && typeof bonusEnabled !== "boolean") {
+      return NextResponse.json(
+        { ok: false, error: "bonusEnabled はbooleanである必要があります" },
+        { status: 400 }
+      );
+    }
 
     const supabase = getSupabase();
 
@@ -105,6 +119,9 @@ export async function PUT(req: Request) {
     // bonusPointsが指定されている場合は含める
     if (bonusPoints !== undefined) {
       updateData.bonus_points = bonusPoints;
+    }
+    if (bonusEnabled !== undefined) {
+      updateData.bonus_enabled = bonusEnabled;
     }
 
     const { error } = await supabase

@@ -13,6 +13,7 @@ import { AlertTriangle, Save, Coins, Users, Plus, Minus, Download, CheckCircle, 
 import { useState, useEffect, useRef } from "react"
 import Link from "next/link"
 import { ClassBonusThresholdDialog } from "@/components/admin/class-bonus-threshold-dialog"
+import { POINT_CONSTANTS } from "@/lib/constants"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -48,6 +49,42 @@ interface PointHistory {
   admin_subtract: number
 }
 
+type BonusClassKey = "kindergarten" | "beginner" | "challenger" | "creator" | "innovator"
+
+interface ClassBonusSetting {
+  threshold: number
+  points: number
+  enabled: boolean
+}
+
+const DEFAULT_CLASS_BONUS_SETTINGS: Record<BonusClassKey, ClassBonusSetting> = {
+  kindergarten: {
+    threshold: POINT_CONSTANTS.DEFAULT_BONUS_THRESHOLD,
+    points: POINT_CONSTANTS.DEFAULT_BONUS_POINTS,
+    enabled: true,
+  },
+  beginner: {
+    threshold: POINT_CONSTANTS.DEFAULT_BONUS_THRESHOLD,
+    points: POINT_CONSTANTS.DEFAULT_BONUS_POINTS,
+    enabled: true,
+  },
+  challenger: {
+    threshold: POINT_CONSTANTS.DEFAULT_BONUS_THRESHOLD,
+    points: POINT_CONSTANTS.DEFAULT_BONUS_POINTS,
+    enabled: true,
+  },
+  creator: {
+    threshold: POINT_CONSTANTS.DEFAULT_BONUS_THRESHOLD,
+    points: POINT_CONSTANTS.DEFAULT_BONUS_POINTS,
+    enabled: true,
+  },
+  innovator: {
+    threshold: POINT_CONSTANTS.DEFAULT_BONUS_THRESHOLD,
+    points: POINT_CONSTANTS.DEFAULT_BONUS_POINTS,
+    enabled: true,
+  },
+}
+
 export default function PointsPage() {
   const { toast } = useToast()
 
@@ -62,6 +99,18 @@ export default function PointsPage() {
   const [entryPoints, setEntryPoints] = useState("1")
   const [dailyLimit, setDailyLimit] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "success" | "error">("idle")
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null)
+  const [classBonusSettings, setClassBonusSettings] = useState<Record<BonusClassKey, ClassBonusSetting>>(
+    DEFAULT_CLASS_BONUS_SETTINGS,
+  )
+  const [isClassBonusLoading, setIsClassBonusLoading] = useState(false)
+  const [isClassBonusSaving, setIsClassBonusSaving] = useState(false)
+  const [classBonusSaveStatus, setClassBonusSaveStatus] = useState<"idle" | "saving" | "success" | "error">("idle")
+  const [classBonusSaveError, setClassBonusSaveError] = useState<string | null>(null)
+  const [classBonusLastSavedAt, setClassBonusLastSavedAt] = useState<string | null>(null)
+  const [classBonusDirty, setClassBonusDirty] = useState(false)
 
   // 生徒一覧とポイント推移
   const [students, setStudents] = useState<Student[]>([])
@@ -97,6 +146,10 @@ export default function PointsPage() {
     loadPointHistory()
   }, [selectedPeriod, rankingType])
 
+  useEffect(() => {
+    loadClassBonusSettings()
+  }, [])
+
   // ダイアログが開かれたときに選択した生徒のポイント数を初期化
   useEffect(() => {
     if (bulkAddDialogOpen) {
@@ -129,6 +182,145 @@ export default function PointsPage() {
       }
     } catch (e: any) {
       console.error("Failed to load point settings:", e)
+    }
+  }
+
+  async function loadClassBonusSettings(options?: { preserveEnabled?: boolean }) {
+    setIsClassBonusLoading(true)
+    try {
+      const res = await fetch("/api/bonus-thresholds/class", { cache: "no-store" })
+      const data = await res.json()
+
+      if (res.ok && data?.ok) {
+        const thresholds = data.thresholds ?? {}
+        const bonusPoints = data.bonusPoints ?? {}
+        const bonusEnabled = data.bonusEnabled ?? {}
+        const nextSettings: Record<BonusClassKey, ClassBonusSetting> = {
+          kindergarten: {
+            threshold: thresholds.kindergarten ?? POINT_CONSTANTS.DEFAULT_BONUS_THRESHOLD,
+            points: bonusPoints.kindergarten ?? POINT_CONSTANTS.DEFAULT_BONUS_POINTS,
+            enabled: bonusEnabled.kindergarten ?? true,
+          },
+          beginner: {
+            threshold: thresholds.beginner ?? POINT_CONSTANTS.DEFAULT_BONUS_THRESHOLD,
+            points: bonusPoints.beginner ?? POINT_CONSTANTS.DEFAULT_BONUS_POINTS,
+            enabled: bonusEnabled.beginner ?? true,
+          },
+          challenger: {
+            threshold: thresholds.challenger ?? POINT_CONSTANTS.DEFAULT_BONUS_THRESHOLD,
+            points: bonusPoints.challenger ?? POINT_CONSTANTS.DEFAULT_BONUS_POINTS,
+            enabled: bonusEnabled.challenger ?? true,
+          },
+          creator: {
+            threshold: thresholds.creator ?? POINT_CONSTANTS.DEFAULT_BONUS_THRESHOLD,
+            points: bonusPoints.creator ?? POINT_CONSTANTS.DEFAULT_BONUS_POINTS,
+            enabled: bonusEnabled.creator ?? true,
+          },
+          innovator: {
+            threshold: thresholds.innovator ?? POINT_CONSTANTS.DEFAULT_BONUS_THRESHOLD,
+            points: bonusPoints.innovator ?? POINT_CONSTANTS.DEFAULT_BONUS_POINTS,
+            enabled: bonusEnabled.innovator ?? true,
+          },
+        }
+
+        if (options?.preserveEnabled) {
+          setClassBonusSettings((prev) => ({
+            kindergarten: { ...nextSettings.kindergarten, enabled: prev.kindergarten.enabled },
+            beginner: { ...nextSettings.beginner, enabled: prev.beginner.enabled },
+            challenger: { ...nextSettings.challenger, enabled: prev.challenger.enabled },
+            creator: { ...nextSettings.creator, enabled: prev.creator.enabled },
+            innovator: { ...nextSettings.innovator, enabled: prev.innovator.enabled },
+          }))
+        } else {
+          setClassBonusSettings(nextSettings)
+          setClassBonusDirty(false)
+        }
+      }
+    } catch (e: any) {
+      console.error("Failed to load class bonus settings:", e)
+    } finally {
+      setIsClassBonusLoading(false)
+    }
+  }
+
+  const handleBonusDialogChange =
+    (setter: (open: boolean) => void) => (open: boolean) => {
+      setter(open)
+      if (!open) {
+        loadClassBonusSettings({ preserveEnabled: true })
+        setClassBonusSaveStatus("idle")
+      }
+    }
+
+  const formatSavedAt = (value: string) =>
+    new Date(value).toLocaleString("ja-JP", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    })
+
+  const handleClassBonusToggle = (key: BonusClassKey, enabled: boolean) => {
+    setClassBonusSettings((prev) => ({
+      ...prev,
+      [key]: {
+        ...prev[key],
+        enabled,
+      },
+    }))
+    setClassBonusSaveStatus("idle")
+    setClassBonusDirty(true)
+  }
+
+  async function handleSaveClassBonusSettings() {
+    if (isClassBonusSaving) return
+
+    setIsClassBonusSaving(true)
+    setClassBonusSaveStatus("saving")
+    setClassBonusSaveError(null)
+
+    try {
+      const entries = Object.entries(classBonusSettings) as Array<[BonusClassKey, ClassBonusSetting]>
+      await Promise.all(
+        entries.map(async ([classKey, setting]) => {
+          const res = await fetch("/api/bonus-thresholds/class", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              class: classKey,
+              bonusThreshold: setting.threshold,
+              bonusPoints: setting.points,
+              bonusEnabled: setting.enabled,
+            }),
+          })
+
+          const data = await res.json()
+          if (!res.ok || !data?.ok) {
+            throw new Error(data?.error || `保存に失敗しました（${res.status}）`)
+          }
+        }),
+      )
+      await loadClassBonusSettings()
+
+      setClassBonusLastSavedAt(new Date().toISOString())
+      setClassBonusSaveStatus("success")
+      setClassBonusDirty(false)
+      toast({
+        title: "保存しました",
+        description: "ボーナスポイント設定を保存しました。",
+      })
+    } catch (e: any) {
+      const message = e?.message || "保存に失敗しました"
+      setClassBonusSaveStatus("error")
+      setClassBonusSaveError(message)
+      toast({
+        title: "エラー",
+        description: message,
+        variant: "destructive",
+      })
+    } finally {
+      setIsClassBonusSaving(false)
     }
   }
 
@@ -889,16 +1081,21 @@ export default function PointsPage() {
     if (isSaving) return
     
     setIsSaving(true)
+    setSaveStatus("saving")
+    setSaveError(null)
     try {
       console.log('[PointSettings] Saving settings...', { entryPoints, dailyLimit })
       
       const points = parseInt(entryPoints, 10)
       if (isNaN(points) || points < 0) {
+        const message = "ポイント数は0以上の数値である必要があります"
         toast({
           title: "❌ エラー",
-          description: "ポイント数は0以上の数値である必要があります",
+          description: message,
           variant: "destructive",
         })
+        setSaveStatus("error")
+        setSaveError(message)
         return
       }
 
@@ -927,6 +1124,8 @@ export default function PointsPage() {
 
       // 保存後に設定を再読み込み
       await loadPointSettings()
+      setLastSavedAt(new Date().toISOString())
+      setSaveStatus("success")
 
       toast({
         title: "✅ 保存完了！",
@@ -937,6 +1136,8 @@ export default function PointsPage() {
       console.log('[PointSettings] Settings saved successfully')
     } catch (e: any) {
       console.error('[PointSettings] Failed to save:', e)
+      setSaveStatus("error")
+      setSaveError(e?.message || "保存に失敗しました")
       toast({
         title: "❌ 保存失敗",
         description: e?.message || "保存に失敗しました。ページを再読み込みして再度お試しください。",
@@ -947,6 +1148,31 @@ export default function PointsPage() {
       setIsSaving(false)
     }
   }
+
+  const saveStatusText =
+    saveStatus === "saving"
+      ? "保存中..."
+      : saveStatus === "error"
+      ? `保存に失敗しました${saveError ? `: ${saveError}` : ""}`
+      : lastSavedAt
+      ? `最終保存: ${formatSavedAt(lastSavedAt)}`
+      : "未保存"
+
+  const saveStatusTone = saveStatus === "error" ? "text-destructive" : "text-muted-foreground"
+
+  const classBonusStatusText =
+    classBonusSaveStatus === "saving"
+      ? "保存中..."
+      : classBonusSaveStatus === "error"
+      ? `保存に失敗しました${classBonusSaveError ? `: ${classBonusSaveError}` : ""}`
+      : classBonusDirty
+      ? "未保存"
+      : classBonusLastSavedAt
+      ? `最終保存: ${formatSavedAt(classBonusLastSavedAt)}`
+      : "保存済み"
+
+  const classBonusStatusTone =
+    classBonusSaveStatus === "error" ? "text-destructive" : "text-muted-foreground"
 
   const getClassLabel = (studentClass?: string) => {
     if (!studentClass) return "-"
@@ -1363,7 +1589,12 @@ export default function PointsPage() {
               </div>
               <Switch id="daily-limit" checked={dailyLimit} onCheckedChange={setDailyLimit} disabled={isSaving} />
             </div>
-            <div className="flex justify-end pt-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
+              <div className={`flex items-center gap-2 text-xs ${saveStatusTone}`}>
+                {saveStatus === "success" && <CheckCircle className="h-3.5 w-3.5 text-primary" />}
+                {saveStatus === "error" && <AlertTriangle className="h-3.5 w-3.5 text-destructive" />}
+                <span>{saveStatusText}</span>
+              </div>
               <Button 
                 onClick={handleSave} 
                 size="sm" 
@@ -1396,57 +1627,165 @@ export default function PointsPage() {
             <div>
               <h3 className="mb-2 text-sm font-medium">クラス別設定</h3>
                 <div className="grid gap-3 sm:grid-cols-5">
-                  <button
-                    type="button"
-                    className="group rounded-md border border-border border-t-2 border-t-[color:var(--link)] bg-card px-4 py-3 text-left transition-colors hover:bg-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                    onClick={() => setKindergartenBonusDialogOpen(true)}
-                  >
-                    <div className="space-y-1">
-                      <p className="text-sm link-accent">キンダー</p>
-                      <p className="text-xs text-muted-foreground">ボーナス閾値を設定</p>
+                  <div className="rounded-md border border-border border-t-2 border-t-[color:var(--link)] bg-card px-4 py-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1">
+                        <p className="text-sm link-accent">キンダー</p>
+                        <p className="text-xs text-muted-foreground">
+                          {isClassBonusLoading
+                            ? "読み込み中..."
+                            : classBonusSettings.kindergarten.enabled
+                            ? `${classBonusSettings.kindergarten.threshold}回 / ${classBonusSettings.kindergarten.points}pt`
+                            : `OFF（${classBonusSettings.kindergarten.threshold}回 / ${classBonusSettings.kindergarten.points}pt）`}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setKindergartenBonusDialogOpen(true)}
+                        disabled={isClassBonusSaving || isClassBonusLoading}
+                      >
+                        設定
+                      </Button>
                     </div>
-                  </button>
-                  <button
-                    type="button"
-                    className="group rounded-md border border-border border-t-2 border-t-[color:var(--link)] bg-card px-4 py-3 text-left transition-colors hover:bg-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                    onClick={() => setBeginnerBonusDialogOpen(true)}
-                  >
-                    <div className="space-y-1">
-                      <p className="text-sm link-accent">ビギナー</p>
-                      <p className="text-xs text-muted-foreground">ボーナス閾値を設定</p>
+                    <div className="mt-3 flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">ボーナス</span>
+                      <Switch
+                        checked={classBonusSettings.kindergarten.enabled}
+                        onCheckedChange={(checked) => handleClassBonusToggle("kindergarten", checked)}
+                        disabled={isClassBonusSaving || isClassBonusLoading}
+                      />
                     </div>
-                  </button>
-                  <button
-                    type="button"
-                    className="group rounded-md border border-border border-t-2 border-t-[color:var(--link)] bg-card px-4 py-3 text-left transition-colors hover:bg-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                    onClick={() => setChallengerBonusDialogOpen(true)}
-                  >
-                    <div className="space-y-1">
-                      <p className="text-sm link-accent">チャレンジャー</p>
-                      <p className="text-xs text-muted-foreground">ボーナス閾値を設定</p>
+                  </div>
+                  <div className="rounded-md border border-border border-t-2 border-t-[color:var(--link)] bg-card px-4 py-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1">
+                        <p className="text-sm link-accent">ビギナー</p>
+                        <p className="text-xs text-muted-foreground">
+                          {isClassBonusLoading
+                            ? "読み込み中..."
+                            : classBonusSettings.beginner.enabled
+                            ? `${classBonusSettings.beginner.threshold}回 / ${classBonusSettings.beginner.points}pt`
+                            : `OFF（${classBonusSettings.beginner.threshold}回 / ${classBonusSettings.beginner.points}pt）`}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setBeginnerBonusDialogOpen(true)}
+                        disabled={isClassBonusSaving || isClassBonusLoading}
+                      >
+                        設定
+                      </Button>
                     </div>
-                  </button>
-                  <button
-                    type="button"
-                    className="group rounded-md border border-border border-t-2 border-t-[color:var(--link)] bg-card px-4 py-3 text-left transition-colors hover:bg-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                    onClick={() => setCreatorBonusDialogOpen(true)}
-                  >
-                    <div className="space-y-1">
-                      <p className="text-sm link-accent">クリエイター</p>
-                      <p className="text-xs text-muted-foreground">ボーナス閾値を設定</p>
+                    <div className="mt-3 flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">ボーナス</span>
+                      <Switch
+                        checked={classBonusSettings.beginner.enabled}
+                        onCheckedChange={(checked) => handleClassBonusToggle("beginner", checked)}
+                        disabled={isClassBonusSaving || isClassBonusLoading}
+                      />
                     </div>
-                  </button>
-                  <button
-                    type="button"
-                    className="group rounded-md border border-border border-t-2 border-t-[color:var(--link)] bg-card px-4 py-3 text-left transition-colors hover:bg-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                    onClick={() => setInnovatorBonusDialogOpen(true)}
-                  >
-                    <div className="space-y-1">
-                      <p className="text-sm link-accent">イノベーター</p>
-                      <p className="text-xs text-muted-foreground">ボーナス閾値を設定</p>
+                  </div>
+                  <div className="rounded-md border border-border border-t-2 border-t-[color:var(--link)] bg-card px-4 py-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1">
+                        <p className="text-sm link-accent">チャレンジャー</p>
+                        <p className="text-xs text-muted-foreground">
+                          {isClassBonusLoading
+                            ? "読み込み中..."
+                            : classBonusSettings.challenger.enabled
+                            ? `${classBonusSettings.challenger.threshold}回 / ${classBonusSettings.challenger.points}pt`
+                            : `OFF（${classBonusSettings.challenger.threshold}回 / ${classBonusSettings.challenger.points}pt）`}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setChallengerBonusDialogOpen(true)}
+                        disabled={isClassBonusSaving || isClassBonusLoading}
+                      >
+                        設定
+                      </Button>
                     </div>
-                  </button>
+                    <div className="mt-3 flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">ボーナス</span>
+                      <Switch
+                        checked={classBonusSettings.challenger.enabled}
+                        onCheckedChange={(checked) => handleClassBonusToggle("challenger", checked)}
+                        disabled={isClassBonusSaving || isClassBonusLoading}
+                      />
+                    </div>
+                  </div>
+                  <div className="rounded-md border border-border border-t-2 border-t-[color:var(--link)] bg-card px-4 py-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1">
+                        <p className="text-sm link-accent">クリエイター</p>
+                        <p className="text-xs text-muted-foreground">
+                          {isClassBonusLoading
+                            ? "読み込み中..."
+                            : classBonusSettings.creator.enabled
+                            ? `${classBonusSettings.creator.threshold}回 / ${classBonusSettings.creator.points}pt`
+                            : `OFF（${classBonusSettings.creator.threshold}回 / ${classBonusSettings.creator.points}pt）`}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCreatorBonusDialogOpen(true)}
+                        disabled={isClassBonusSaving || isClassBonusLoading}
+                      >
+                        設定
+                      </Button>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">ボーナス</span>
+                      <Switch
+                        checked={classBonusSettings.creator.enabled}
+                        onCheckedChange={(checked) => handleClassBonusToggle("creator", checked)}
+                        disabled={isClassBonusSaving || isClassBonusLoading}
+                      />
+                    </div>
+                  </div>
+                  <div className="rounded-md border border-border border-t-2 border-t-[color:var(--link)] bg-card px-4 py-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1">
+                        <p className="text-sm link-accent">イノベーター</p>
+                        <p className="text-xs text-muted-foreground">
+                          {isClassBonusLoading
+                            ? "読み込み中..."
+                            : classBonusSettings.innovator.enabled
+                            ? `${classBonusSettings.innovator.threshold}回 / ${classBonusSettings.innovator.points}pt`
+                            : `OFF（${classBonusSettings.innovator.threshold}回 / ${classBonusSettings.innovator.points}pt）`}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setInnovatorBonusDialogOpen(true)}
+                        disabled={isClassBonusSaving || isClassBonusLoading}
+                      >
+                        設定
+                      </Button>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground">ボーナス</span>
+                      <Switch
+                        checked={classBonusSettings.innovator.enabled}
+                        onCheckedChange={(checked) => handleClassBonusToggle("innovator", checked)}
+                        disabled={isClassBonusSaving || isClassBonusLoading}
+                      />
+                    </div>
+                  </div>
                 </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  ※トグル変更後はこのセクションの「設定を保存」を押してください
+                </p>
             </div>
             <Alert>
               <AlertDescription className="text-sm">
@@ -1458,37 +1797,63 @@ export default function PointsPage() {
                 </ul>
               </AlertDescription>
             </Alert>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className={`flex items-center gap-2 text-xs ${classBonusStatusTone}`}>
+                {classBonusSaveStatus === "success" && <CheckCircle className="h-3.5 w-3.5 text-primary" />}
+                {classBonusSaveStatus === "error" && <AlertTriangle className="h-3.5 w-3.5 text-destructive" />}
+                <span>{classBonusStatusText}</span>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                className="gap-2 min-w-[120px]"
+                onClick={handleSaveClassBonusSettings}
+                disabled={isClassBonusSaving || isClassBonusLoading}
+              >
+                {isClassBonusSaving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    保存中...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4" />
+                    設定を保存
+                  </>
+                )}
+              </Button>
+            </div>
           </CardContent>
         </Card>
 
         {/* ボーナス閾値設定ダイアログ（クラス別） */}
         <ClassBonusThresholdDialog
           open={kindergartenBonusDialogOpen}
-          onOpenChange={setKindergartenBonusDialogOpen}
+          onOpenChange={handleBonusDialogChange(setKindergartenBonusDialogOpen)}
           class="kindergarten"
           classLabel="キンダー"
         />
         <ClassBonusThresholdDialog
           open={beginnerBonusDialogOpen}
-          onOpenChange={setBeginnerBonusDialogOpen}
+          onOpenChange={handleBonusDialogChange(setBeginnerBonusDialogOpen)}
           class="beginner"
           classLabel="ビギナー"
         />
         <ClassBonusThresholdDialog
           open={challengerBonusDialogOpen}
-          onOpenChange={setChallengerBonusDialogOpen}
+          onOpenChange={handleBonusDialogChange(setChallengerBonusDialogOpen)}
           class="challenger"
           classLabel="チャレンジャー"
         />
         <ClassBonusThresholdDialog
           open={creatorBonusDialogOpen}
-          onOpenChange={setCreatorBonusDialogOpen}
+          onOpenChange={handleBonusDialogChange(setCreatorBonusDialogOpen)}
           class="creator"
           classLabel="クリエイター"
         />
         <ClassBonusThresholdDialog
           open={innovatorBonusDialogOpen}
-          onOpenChange={setInnovatorBonusDialogOpen}
+          onOpenChange={handleBonusDialogChange(setInnovatorBonusDialogOpen)}
           class="innovator"
           classLabel="イノベーター"
         />

@@ -14,13 +14,14 @@ function getSupabase() {
 export async function getPointSettings(siteId: string): Promise<{
   entry_points: number;
   daily_limit: boolean;
+  bonus_enabled: boolean;
 }> {
   try {
     const supabase = getSupabase();
 
     const { data, error } = await supabase
       .from("point_settings")
-      .select("entry_points, daily_limit")
+      .select("entry_points, daily_limit, bonus_enabled")
       .eq("site_id", siteId)
       .single();
 
@@ -30,6 +31,7 @@ export async function getPointSettings(siteId: string): Promise<{
       return {
         entry_points: 1,
         daily_limit: true,
+        bonus_enabled: true,
       };
     }
 
@@ -38,12 +40,14 @@ export async function getPointSettings(siteId: string): Promise<{
       return {
         entry_points: 1,
         daily_limit: true,
+        bonus_enabled: true,
       };
     }
 
     return {
       entry_points: data.entry_points ?? 1,
       daily_limit: data.daily_limit ?? true,
+      bonus_enabled: data.bonus_enabled ?? true,
     };
   } catch (e: any) {
     console.error("Error in getPointSettings:", e);
@@ -51,6 +55,7 @@ export async function getPointSettings(siteId: string): Promise<{
     return {
       entry_points: 1,
       daily_limit: true,
+      bonus_enabled: true,
     };
   }
 }

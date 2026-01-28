@@ -79,6 +79,43 @@ export async function getStudentBonusPoints(
 }
 
 /**
+ * クラス別ボーナスの有効/無効を取得する
+ * @param siteId サイトID
+ * @param studentClass 生徒のクラス
+ * @returns ボーナスが有効な場合true
+ */
+export async function getClassBonusEnabled(
+  siteId: string,
+  studentClass: string | null | undefined
+): Promise<boolean> {
+  const supabase = getSupabase();
+
+  if (!studentClass) {
+    return true;
+  }
+
+  const { data, error } = await supabase
+    .from("class_based_bonus_thresholds")
+    .select("bonus_enabled")
+    .eq("site_id", siteId)
+    .eq("class", studentClass)
+    .single();
+
+  if (error) {
+    if (process.env.NODE_ENV === 'development') {
+      console.error("Failed to get class bonus enabled:", error);
+    }
+    return true;
+  }
+
+  if (data && typeof data.bonus_enabled === "boolean") {
+    return data.bonus_enabled;
+  }
+
+  return true;
+}
+
+/**
  * 今日既にポイントが付与されているかチェック
  * @param siteId サイトID
  * @param studentId 生徒ID
