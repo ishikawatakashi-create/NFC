@@ -145,3 +145,7 @@ temp/
 
 # Archive folders
 archive/
+
+# Local embedded repos (do not commit)
+NFC/
+NFC-1/
