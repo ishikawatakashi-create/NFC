@@ -1,14 +1,7 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { requireAdminApi } from "@/lib/auth-helpers";
 import { getRoleBasedAccessTime } from "@/lib/access-time-utils";
-
-function getSupabase() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-}
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 // CSV一括登録
 export async function POST(req: Request) {
@@ -46,7 +39,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const supabase = getSupabase();
+    const supabase = getSupabaseAdmin();
 
     let successCount = 0;
     let failedCount = 0;
