@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>NFC入退室管理ツール 管理者向けマニュアル</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">NFC入退室管理ツール 管理者向けマニュアル</h1>
+</header>
+<h1
+id="nfc入退室管理ツール-管理者向けマニュアル利用者向け">NFC入退室管理ツール
+管理者向けマニュアル（利用者向け）</h1>
+<h2 id="このマニュアルの対象">1. このマニュアルの対象</h2>
+<p>このマニュアルは、開発作業をしない管理者の方向けです。<br />
+日々の運用で必要な操作だけをまとめています。</p>
+<h2 id="最初に確認すること">2. 最初に確認すること</h2>
+<ul>
+<li>ログインURL:
+<code>https://nfctoukalab.vercel.app/admin/login</code></li>
+<li>管理者アカウント（メールアドレス / パスワード）があること</li>
+<li>入口用・出口用のAndroid端末（Chrome）があること</li>
+<li>生徒に配るNFCカードがあること</li>
+</ul>
+<p>アカウントがない場合は、導入担当者に作成を依頼してください。</p>
+<h2 id="ログイン手順">3. ログイン手順</h2>
+<ol type="1">
+<li><code>https://nfctoukalab.vercel.app/admin/login</code> を開く</li>
+<li>メールアドレスとパスワードを入力</li>
+<li>「ログイン」を押す</li>
+<li>ログイン後、管理画面（クイックリンク）を開く</li>
+</ol>
+<h2 id="画面イメージ参考">画面イメージ（参考）</h2>
+<h3 id="管理者ログイン画面">管理者ログイン画面</h3>
+<figure>
+<img src="assets/manual-screens/01-admin-login.png"
+alt="管理者ログイン画面" />
+<figcaption aria-hidden="true">管理者ログイン画面</figcaption>
+</figure>
+<h3 id="入口キオスク画面">入口キオスク画面</h3>
+<figure>
+<img src="assets/manual-screens/02-kiosk-entry.png"
+alt="入口キオスク画面" />
+<figcaption aria-hidden="true">入口キオスク画面</figcaption>
+</figure>
+<h3 id="出口キオスク画面">出口キオスク画面</h3>
+<figure>
+<img src="assets/manual-screens/03-kiosk-exit.png"
+alt="出口キオスク画面" />
+<figcaption aria-hidden="true">出口キオスク画面</figcaption>
+</figure>
+<p>補足:
+管理画面（ユーザー一覧・ポイント管理など）はログイン後に表示されるため、必要に応じて同フォルダへ追加撮影した画像を追記してください。
+## 4. どの画面で何をするか（全体像） | 目的 | 使う画面 | URL | |—|—|—| |
+生徒・職員の登録/編集 | ユーザー一覧 |
+<code>https://nfctoukalab.vercel.app/admin/students</code> | |
+親御さん情報とLINE連携 | 親御さん管理 |
+<code>https://nfctoukalab.vercel.app/admin/parents</code> | |
+入退室履歴の確認 | 入退室ログ |
+<code>https://nfctoukalab.vercel.app/admin/access-logs</code> | |
+ポイント設定と付与 | ポイント管理 |
+<code>https://nfctoukalab.vercel.app/admin/points</code> | |
+開放時間や通知文の設定 | 設定 |
+<code>https://nfctoukalab.vercel.app/admin/settings</code> | |
+管理者の追加/編集 | 管理ユーザー管理 |
+<code>https://nfctoukalab.vercel.app/admin/admins</code> | |
+主要ページをまとめて開く | クイックリンク |
+<code>https://nfctoukalab.vercel.app/admin/links</code> |</p>
+<h2 id="初回運用で最初にやること">5. 初回運用で最初にやること</h2>
+<h3 id="利用可能時間を設定する">5-1. 利用可能時間を設定する</h3>
+<ol type="1">
+<li><code>https://nfctoukalab.vercel.app/admin/settings</code>
+を開く</li>
+<li>「利用可能時間設定」で以下を設定
+<ul>
+<li>生徒</li>
+<li>アルバイト</li>
+<li>正社員</li>
+</ul></li>
+<li>必要なユーザーのみ「個別設定」で時間を上書き</li>
+<li>変更後は各ダイアログで「保存」</li>
+</ol>
+<h3 id="ポイントの基本設定をする必要な場合">5-2.
+ポイントの基本設定をする（必要な場合）</h3>
+<ol type="1">
+<li><code>https://nfctoukalab.vercel.app/admin/points</code> を開く</li>
+<li>「ポイント設定」で以下を設定
+<ul>
+<li>入室ポイント付与量</li>
+<li>1日1回制限（ON/OFF）</li>
+</ul></li>
+<li>「設定を保存」を押す</li>
+</ol>
+<h3 id="クラス別ボーナスを設定する必要な場合">5-3.
+クラス別ボーナスを設定する（必要な場合）</h3>
+<ol type="1">
+<li>同じく <code>https://nfctoukalab.vercel.app/admin/points</code>
+を開く</li>
+<li>「ポイントボーナス設定」でクラスごとに「設定」を押す</li>
+<li>回数・ボーナスポイントを入力して保存</li>
+<li>最後にセクション下の「設定を保存」を押す</li>
+</ol>
+<h2 id="ユーザー登録とカード登録">6. ユーザー登録とカード登録</h2>
+<h3 id="ユーザーを追加する">6-1. ユーザーを追加する</h3>
+<ol type="1">
+<li><code>https://nfctoukalab.vercel.app/admin/students</code>
+を開く</li>
+<li>「ユーザー追加」を押す</li>
+<li>最低限入力する項目
+<ul>
+<li>ユーザー名</li>
+<li>属性（生徒 / アルバイト / 正社員）</li>
+<li>ステータス（通常は在籍）</li>
+</ul></li>
+<li>「追加」を押す</li>
+</ol>
+<h3 id="カードを登録する">6-2. カードを登録する</h3>
+<ol type="1">
+<li>対象ユーザーの行でカードアイコンを押す</li>
+<li>カード登録ダイアログで方法を選ぶ
+<ul>
+<li>NFCで読み取り</li>
+<li>手動で入力</li>
+</ul></li>
+<li>完了後、「カード登録」が「登録済み」になっていることを確認</li>
+</ol>
+<p>補足: Suicaなどは手動入力が必要になる場合があります。</p>
+<h3 id="csvでまとめて登録する">6-3. CSVでまとめて登録する</h3>
+<ol type="1">
+<li><code>https://nfctoukalab.vercel.app/admin/students</code></li>
+<li>「CSVで一括登録」を押す</li>
+<li>「テンプレートCSVをダウンロード」</li>
+<li>必須列を埋めてアップロード</li>
+<li>結果（成功件数/失敗件数）を確認</li>
+</ol>
+<h2 id="親御さん管理とline通知設定">7. 親御さん管理とLINE通知設定</h2>
+<h3 id="親御さんを登録する">7-1. 親御さんを登録する</h3>
+<ol type="1">
+<li><code>https://nfctoukalab.vercel.app/admin/parents</code>
+を開く</li>
+<li>「親御さんを追加」を押す</li>
+<li>名前、連絡先、続柄を入力</li>
+<li>該当する生徒にチェックを付けて「追加」</li>
+</ol>
+<h3 id="lineアカウントを紐付ける">7-2. LINEアカウントを紐付ける</h3>
+<ol type="1">
+<li>親御さん一覧の対象行で吹き出しアイコンを押す</li>
+<li>LINE User IDを入力</li>
+<li>「紐付け」を押す</li>
+<li>一覧で「連携済み」と表示されることを確認</li>
+</ol>
+<h2 id="キオスク端末入口出口の設置">8.
+キオスク端末（入口/出口）の設置</h2>
+<h3 id="開くurl">8-1. 開くURL</h3>
+<ul>
+<li>入口: <code>https://nfctoukalab.vercel.app/kiosk/entry</code></li>
+<li>出口: <code>https://nfctoukalab.vercel.app/kiosk/exit</code></li>
+</ul>
+<h3 id="設置手順">8-2. 設置手順</h3>
+<ol type="1">
+<li>Android端末でChromeを開く</li>
+<li>上記URLにアクセス</li>
+<li>ホーム画面に追加（ショートカット作成）</li>
+<li>NFCをONにする</li>
+<li>テストカードで「カードをタッチ」を実行</li>
+<li>管理画面ログで反映を確認</li>
+</ol>
+<h2 id="毎日の運用手順おすすめ">9. 毎日の運用手順（おすすめ）</h2>
+<ol type="1">
+<li>開始前に入口・出口キオスクで1回ずつテスト</li>
+<li><code>入退室ログ</code> で記録されているか確認</li>
+<li>必要に応じてログ訂正</li>
+<li>週1回、ポイントバックアップを作成
+<ul>
+<li><code>https://nfctoukalab.vercel.app/admin/points/backup</code></li>
+</ul></li>
+</ol>
+<h2 id="よくある質問利用者向け">10. よくある質問（利用者向け）</h2>
+<h3 id="q1.-カードをタッチしても入室できない">Q1.
+カードをタッチしても入室できない</h3>
+<ul>
+<li>ユーザーが「在籍」か確認</li>
+<li>カード登録が「登録済み」か確認</li>
+<li>端末のNFCがONか確認</li>
+</ul>
+<h3 id="q2.-親御さんにline通知が届かない">Q2.
+親御さんにLINE通知が届かない</h3>
+<ul>
+<li>親御さんと生徒の紐付けがあるか確認</li>
+<li>LINE連携が「連携済み」か確認</li>
+</ul>
+<h3 id="q3.-間違えてユーザー情報を消しそう">Q3.
+間違えてユーザー情報を消しそう</h3>
+<ul>
+<li>原則、削除よりも「ステータス変更」を優先</li>
+<li>卒業/退会は削除ではなくステータスで管理</li>
+</ul>
+<h2 id="主要urlまとめ">11. 主要URLまとめ</h2>
+<ul>
+<li>ログイン:
+<code>https://nfctoukalab.vercel.app/admin/login</code></li>
+<li>クイックリンク:
+<code>https://nfctoukalab.vercel.app/admin/links</code></li>
+<li>ユーザー一覧:
+<code>https://nfctoukalab.vercel.app/admin/students</code></li>
+<li>親御さん管理:
+<code>https://nfctoukalab.vercel.app/admin/parents</code></li>
+<li>入退室ログ:
+<code>https://nfctoukalab.vercel.app/admin/access-logs</code></li>
+<li>ポイント管理:
+<code>https://nfctoukalab.vercel.app/admin/points</code></li>
+<li>設定:
+<code>https://nfctoukalab.vercel.app/admin/settings</code></li>
+<li>入口キオスク:
+<code>https://nfctoukalab.vercel.app/kiosk/entry</code></li>
+<li>出口キオスク:
+<code>https://nfctoukalab.vercel.app/kiosk/exit</code></li>
+</ul>
+<h2 id="更新履歴">12. 更新履歴</h2>
+<ul>
+<li>2026-02-15: 利用者（非開発者）向けに全面改訂、固定URLを反映</li>
+</ul>
+</body>
+</html>
