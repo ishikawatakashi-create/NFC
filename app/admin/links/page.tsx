@@ -133,7 +133,7 @@ export default function QuickLinksPage() {
                   return (
                     <div
                       key={`${item.path}-${index}`}
-                      className="flex items-start justify-between gap-4 border-b border-border px-4 py-3 last:border-b-0 hover:bg-accent/80 lg:odd:border-r"
+                      className="flex items-start justify-between gap-4 border-b border-border px-4 py-3 last:border-b-0 lg:[&:nth-last-child(2):nth-child(odd)]:border-b-0 hover:bg-accent/80 lg:odd:border-r"
                     >
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-foreground">
