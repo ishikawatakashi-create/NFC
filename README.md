@@ -149,6 +149,19 @@ Vercelへのデプロイを推奨します。
 
 詳細は [Vercelデプロイガイド](docs/vercel-deployment-guide.md) を参照してください。
 
+## 💓 Supabase Heartbeat
+
+Supabase Free Plan の休眠対策として、GitHub Actions から定期的に `/api/heartbeat` を呼び出せます。
+
+設定するGitHub Secrets:
+- `SUPABASE_HEARTBEAT_URL`: `https://your-app.vercel.app/api/heartbeat`
+- `CRON_API_SECRET`: アプリ側の `CRON_API_SECRET` と同じ値（設定した場合のみ）
+
+ワークフロー:
+- `.github/workflows/supabase-heartbeat.yml`
+- 12時間ごとに実行
+- `workflow_dispatch` で手動実行も可能
+
 ## 🤝 貢献
 
 プロジェクトへの貢献を歓迎します。

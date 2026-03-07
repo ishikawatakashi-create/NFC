@@ -1,34 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { getStudentAccessTime, hasAccessWindowBetween } from "@/lib/access-time-utils";
-
-function requireCronSecret(req: Request): { ok: true } | { ok: false; response: NextResponse } {
-  // Vercel Cronからの呼び出しの場合は認証をスキップ
-  const vercelCronHeader = req.headers.get("x-vercel-cron");
-  if (vercelCronHeader) {
-    return { ok: true };
-  }
-
-  // CRON_API_SECRETが設定されていない場合は認証をスキップ（外部Cronサービスや手動実行を許可）
-  const secret = process.env.CRON_API_SECRET;
-  if (!secret) {
-    return { ok: true };
-  }
-
-  // CRON_API_SECRETが設定されている場合は、x-cron-secretヘッダーを要求
-  const provided = req.headers.get("x-cron-secret");
-  if (!provided || provided !== secret) {
-    return {
-      ok: false,
-      response: NextResponse.json(
-        { ok: false, error: "認証に失敗しました" },
-        { status: 401 }
-      ),
-    };
-  }
-
-  return { ok: true };
-}
+import { requireCronSecret } from "@/lib/cron-auth";
 
 /**
  * POST /api/auto-exit
