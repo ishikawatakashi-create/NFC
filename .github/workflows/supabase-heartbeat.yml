@@ -23,23 +23,39 @@ jobs:
             exit 1
           fi
 
+          response_file="$(mktemp)"
+          status_code=""
+
           if [ -n "${CRON_API_SECRET:-}" ]; then
-            curl \
-              --fail \
-              --show-error \
+            status_code="$(curl \
               --silent \
+              --show-error \
+              --location \
               --retry 3 \
               --retry-all-errors \
               --max-time 30 \
+              --output "${response_file}" \
+              --write-out "%{http_code}" \
               -H "x-cron-secret: ${CRON_API_SECRET}" \
-              "${SUPABASE_HEARTBEAT_URL}"
+              "${SUPABASE_HEARTBEAT_URL}")"
           else
-            curl \
-              --fail \
-              --show-error \
+            status_code="$(curl \
               --silent \
+              --show-error \
+              --location \
               --retry 3 \
               --retry-all-errors \
               --max-time 30 \
-              "${SUPABASE_HEARTBEAT_URL}"
+              --output "${response_file}" \
+              --write-out "%{http_code}" \
+              "${SUPABASE_HEARTBEAT_URL}")"
+          fi
+
+          echo "HTTP status: ${status_code}"
+          echo "Response body:"
+          cat "${response_file}"
+
+          if [ "${status_code}" -lt 200 ] || [ "${status_code}" -ge 300 ]; then
+            echo "Heartbeat request failed." >&2
+            exit 1
           fi
