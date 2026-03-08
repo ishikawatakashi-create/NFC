@@ -36,6 +36,7 @@ ALTER TABLE IF EXISTS public.class_based_bonus_thresholds ENABLE ROW LEVEL SECUR
 -- 親御さん関連テーブル
 ALTER TABLE IF EXISTS public.parents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE IF EXISTS public.parent_students ENABLE ROW LEVEL SECURITY;
+ALTER TABLE IF EXISTS public.line_link_tokens ENABLE ROW LEVEL SECURITY;
 
 -- ポイント関連テーブル
 ALTER TABLE IF EXISTS public.point_transactions ENABLE ROW LEVEL SECURITY;
@@ -401,6 +402,43 @@ CREATE POLICY "Admins can manage parent_students" ON public.parent_students
   FOR ALL
   USING (public.is_admin())
   WITH CHECK (public.is_admin());
+
+-- line_link_tokensテーブル: 管理者のみアクセス可能（site_idでフィルタリング）
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.tables
+    WHERE table_schema = 'public'
+    AND table_name = 'line_link_tokens'
+  ) THEN
+    IF EXISTS (
+      SELECT 1
+      FROM information_schema.columns
+      WHERE table_schema = 'public'
+      AND table_name = 'line_link_tokens'
+      AND column_name = 'site_id'
+    ) THEN
+      DROP POLICY IF EXISTS "Admins can manage line_link_tokens" ON public.line_link_tokens;
+      CREATE POLICY "Admins can manage line_link_tokens" ON public.line_link_tokens
+        FOR ALL
+        USING (
+          public.is_admin()
+          AND site_id = public.get_admin_site_id()
+        )
+        WITH CHECK (
+          public.is_admin()
+          AND site_id = public.get_admin_site_id()
+        );
+    ELSE
+      DROP POLICY IF EXISTS "Admins can manage line_link_tokens" ON public.line_link_tokens;
+      CREATE POLICY "Admins can manage line_link_tokens" ON public.line_link_tokens
+        FOR ALL
+        USING (public.is_admin())
+        WITH CHECK (public.is_admin());
+    END IF;
+  END IF;
+END $$;
 
 -- point_transactionsテーブル: 管理者のみアクセス可能（site_idでフィルタリング）
 DO $$

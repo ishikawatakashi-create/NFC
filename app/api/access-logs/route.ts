@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import {
   getStudentBonusThreshold,
   getStudentBonusPoints,
@@ -14,6 +14,7 @@ import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { getStudentAccessTime, hasAccessWindowBetween } from "@/lib/access-time-utils";
 import { requireAdminApi } from "@/lib/auth-helpers";
 import { AUTO_EXIT_CONSTANTS } from "@/lib/constants";
+import { unlockDoor, isUnlockTargetRole } from "@/lib/switchbot";
 
 function requireKioskSecret(req: Request): { ok: true } | { ok: false; response: NextResponse } {
   const secret = process.env.KIOSK_API_SECRET;
@@ -443,14 +444,37 @@ export async function POST(req: Request) {
       }
     }
 
-    // 入退室処理が成功した後、非同期で自動退室チェックを実行
-    // レスポンス時間への影響を最小限にするため、awaitしない
-    // 5分に1回のみ実行（パフォーマンス最適化）
-    if (shouldRunAutoExitCheck()) {
-      checkAndProcessAutoExit(siteId).catch((error) => {
-        console.error("[AutoExit] Error in background auto-exit check:", error);
-      });
-    }
+    // レスポンス後に副作用を継続させることで、サーバーレス環境でも完走しやすくする
+    after(async () => {
+      // 入室時かつ解錠対象ロールの場合、SwitchBot Lockを解錠
+      if (eventType === "entry") {
+        const studentRole = (studentData.role || "student") as "student" | "part_time" | "full_time";
+        if (isUnlockTargetRole(studentRole)) {
+          console.log(
+            `[SwitchBot] 解錠対象ロール "${studentRole}" の入室を検知。解錠処理を開始します (${studentData.name})`
+          );
+          try {
+            await unlockDoor();
+          } catch (error) {
+            console.error(`[SwitchBot] 解錠処理でエラーが発生しました (${studentData.name}):`, error);
+          }
+        } else {
+          console.log(
+            `[SwitchBot] ロール "${studentRole}" は解錠対象外です。スキップします (${studentData.name})`
+          );
+        }
+      }
+
+      // 入退室処理が成功した後、自動退室チェックをバックグラウンドで実行
+      // 5分に1回のみ実行（パフォーマンス最適化）
+      if (shouldRunAutoExitCheck()) {
+        try {
+          await checkAndProcessAutoExit(siteId);
+        } catch (error) {
+          console.error("[AutoExit] Error in background auto-exit check:", error);
+        }
+      }
+    });
 
     return NextResponse.json({
       ok: true,

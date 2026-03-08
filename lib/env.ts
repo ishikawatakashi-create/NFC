@@ -32,6 +32,12 @@ const optionalEnvVars = {
   LINE_CHANNEL_SECRET: process.env.LINE_CHANNEL_SECRET,
   LINE_CHANNEL_ACCESS_TOKEN: process.env.LINE_CHANNEL_ACCESS_TOKEN,
   
+  // SwitchBot連携（オプション）
+  SWITCHBOT_TOKEN: process.env.SWITCHBOT_TOKEN,
+  SWITCHBOT_SECRET: process.env.SWITCHBOT_SECRET,
+  SWITCHBOT_LOCK_DEVICE_ID: process.env.SWITCHBOT_LOCK_DEVICE_ID,
+  SWITCHBOT_UNLOCK_ROLES: process.env.SWITCHBOT_UNLOCK_ROLES,
+  
   // デプロイメント設定
   NEXT_PUBLIC_BASE_URL: process.env.NEXT_PUBLIC_BASE_URL,
   VERCEL_URL: process.env.VERCEL_URL,
@@ -126,6 +132,22 @@ export const env = {
   
   get LINE_CHANNEL_ACCESS_TOKEN(): string | undefined {
     return optionalEnvVars.LINE_CHANNEL_ACCESS_TOKEN;
+  },
+  
+  get SWITCHBOT_TOKEN(): string | undefined {
+    return optionalEnvVars.SWITCHBOT_TOKEN;
+  },
+  
+  get SWITCHBOT_SECRET(): string | undefined {
+    return optionalEnvVars.SWITCHBOT_SECRET;
+  },
+  
+  get SWITCHBOT_LOCK_DEVICE_ID(): string | undefined {
+    return optionalEnvVars.SWITCHBOT_LOCK_DEVICE_ID;
+  },
+  
+  get SWITCHBOT_UNLOCK_ROLES(): string | undefined {
+    return optionalEnvVars.SWITCHBOT_UNLOCK_ROLES;
   },
   
   get NEXT_PUBLIC_BASE_URL(): string | undefined {

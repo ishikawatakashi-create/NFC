@@ -119,6 +119,7 @@ NFC/
 詳細なドキュメントは `docs/` フォルダを参照してください。
 
 - [LINE連携セットアップガイド](docs/line-notification-setup-guide.md)
+- [SwitchBot Lock連携ガイド](docs/switchbot-integration.md)
 - [ポイントシステム実装概要](docs/point-system-implementation-summary.md)
 - [本番環境デプロイガイド](docs/vercel-deployment-guide.md)
 - [セキュリティ対策まとめ](docs/security-fix-summary.md)

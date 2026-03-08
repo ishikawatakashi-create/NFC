@@ -1,54 +1,54 @@
 # デプロイ済みURL一覧
 
-ドメイン: **nfc-toukalab.vercel.app**
+ドメイン: **nfctoukalab.vercel.app**
 
 ## 主要ページURL
 
 ### ルートページ
 - **トップページ（Supabase接続テスト）**
-  - https://nfc-toukalab.vercel.app/
+  - https://nfctoukalab.vercel.app/
 
 ### 管理画面
 
 #### 認証
 - **管理者ログイン**
-  - https://nfc-toukalab.vercel.app/admin/login
+  - https://nfctoukalab.vercel.app/admin/login
 - **管理者登録**
-  - https://nfc-toukalab.vercel.app/admin/register
+  - https://nfctoukalab.vercel.app/admin/register
 
 #### ユーザー管理
 - **ユーザー一覧**
-  - https://nfc-toukalab.vercel.app/admin/students
+  - https://nfctoukalab.vercel.app/admin/students
 - **ユーザー詳細（動的ルート）**
-  - https://nfc-toukalab.vercel.app/admin/students/[id]
-  - 例: https://nfc-toukalab.vercel.app/admin/students/1
+  - https://nfctoukalab.vercel.app/admin/students/[id]
+  - 例: https://nfctoukalab.vercel.app/admin/students/1
 
 #### ログ管理
 - **入退室ログ**
-  - https://nfc-toukalab.vercel.app/admin/access-logs
+  - https://nfctoukalab.vercel.app/admin/access-logs
 
 #### 設定
 - **設定**
-  - https://nfc-toukalab.vercel.app/admin/settings
+  - https://nfctoukalab.vercel.app/admin/settings
 
 ### キオスク画面
 
 - **入室画面**
-  - https://nfc-toukalab.vercel.app/kiosk/entry
+  - https://nfctoukalab.vercel.app/kiosk/entry
 - **退室画面**
-  - https://nfc-toukalab.vercel.app/kiosk/exit
+  - https://nfctoukalab.vercel.app/kiosk/exit
 
 ### その他
 
 - **環境チェック**
-  - https://nfc-toukalab.vercel.app/envcheck
+  - https://nfctoukalab.vercel.app/envcheck
 - **テストページ**
-  - https://nfc-toukalab.vercel.app/test
+  - https://nfctoukalab.vercel.app/test
 
 ## APIエンドポイント
 
 ### ヘルスチェック
-- https://nfc-toukalab.vercel.app/api/health
+- https://nfctoukalab.vercel.app/api/health
 
 ### ユーザー管理API
 - `GET /api/students` - ユーザー一覧取得

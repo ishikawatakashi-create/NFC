@@ -10,6 +10,7 @@
     "dev": "next dev -p 3001",
     "lint": "eslint .",
     "start": "next start",
+    "switchbot:devices": "node scripts/list-switchbot-devices.mjs",
     "tunnel": ".\\ngrok.exe http 3001",
     "tunnel:ngrok": ".\\ngrok.exe http 3001",
     "tunnel:lt": "npx localtunnel --port 3001"

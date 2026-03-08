@@ -16,8 +16,8 @@
    - デプロイURLが共有されているアカウントでログイン
 
 2. **プロジェクトを選択**
-   - プロジェクト名: `nfc-toukalab`（または該当するプロジェクト名）
-   - または、URL: `https://nfc-toukalab.vercel.app` からプロジェクトを特定
+  - プロジェクト名: `nfctoukalab`（または該当するプロジェクト名）
+  - または、URL: `https://nfctoukalab.vercel.app` からプロジェクトを特定
 
 ### 2. デプロイメントログの確認
 

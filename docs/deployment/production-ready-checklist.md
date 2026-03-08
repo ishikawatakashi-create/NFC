@@ -24,7 +24,7 @@
 
 ### 現在の状態
 
-- ✅ Vercelにデプロイ済み（`nfc-toukalab.vercel.app`）
+- ✅ Vercelにデプロイ済み（`nfctoukalab.vercel.app`）
 - ✅ 管理者認証機能実装済み
 - ✅ LINE通知機能実装済み
 - ✅ RLS（Row Level Security）設定済み
@@ -141,7 +141,7 @@ Phase 5: パフォーマンス・最適化（1-2日）
 **Vercelのデプロイ環境をそのまま本番環境として使用します。**
 
 - ✅ Vercelの無料プランでも本番環境として使用可能
-- ✅ `nfc-toukalab.vercel.app` のドメインでそのまま使用可能
+- ✅ `nfctoukalab.vercel.app` のドメインでそのまま使用可能
 - ✅ カスタムドメインの設定は任意（独自ドメインが必要な場合のみ）
 - ✅ HTTPSは自動で有効化される
 - ✅ 環境変数を「Production」環境として設定する必要がある
@@ -190,7 +190,7 @@ Phase 5: パフォーマンス・最適化（1-2日）
 **確認方法**: 
 1. Vercelダッシュボード → プロジェクト → Settings → Environment Variables
 2. 各環境変数が「Production」にチェックが入っているか確認
-3. 本番環境のURL（`https://nfc-toukalab.vercel.app/envcheck`）にアクセスして環境変数が正しく読み込まれているか確認
+3. 本番環境のURL（`https://nfctoukalab.vercel.app/envcheck`）にアクセスして環境変数が正しく読み込まれているか確認
 
 ---
 

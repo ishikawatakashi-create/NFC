@@ -31,7 +31,7 @@
 
 ### 現在の状態
 
-- ✅ Vercelにデプロイ済み（`nfc-toukalab.vercel.app`）
+- ✅ Vercelにデプロイ済み（`nfctoukalab.vercel.app`）
 - ✅ 管理者認証機能実装済み
 - ✅ LINE通知機能実装済み
 - ✅ RLS（Row Level Security）設定済み
