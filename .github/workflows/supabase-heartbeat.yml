@@ -59,3 +59,13 @@ jobs:
             echo "Heartbeat request failed." >&2
             exit 1
           fi
+
+  # リポジトリが60日間コミットなしだとGitHubがスケジュール実行を自動停止するため、
+  # 停止前にワークフローを再有効化しておく
+  workflow-keepalive:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - uses: liskin/gh-workflow-keepalive@v1
